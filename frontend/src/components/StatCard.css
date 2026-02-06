@@ -1,0 +1,80 @@
+.stat-card {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  gap: 15px;
+  align-items: flex-start;
+  transition: all 0.3s ease;
+  border-left: 4px solid #667eea;
+}
+
+.stat-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.stat-card-blue {
+  border-left-color: #667eea;
+}
+
+.stat-card-green {
+  border-left-color: #00c853;
+}
+
+.stat-card-orange {
+  border-left-color: #ff9800;
+}
+
+.stat-card-red {
+  border-left-color: #f44336;
+}
+
+.stat-icon {
+  font-size: 32px;
+  min-width: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-content {
+  flex: 1;
+}
+
+.stat-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  margin: 0 0 8px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 8px 0;
+}
+
+.stat-unit {
+  font-size: 14px;
+  font-weight: 400;
+  color: #999;
+}
+
+.stat-trend {
+  font-size: 12px;
+  margin: 0;
+  font-weight: 500;
+}
+
+.stat-trend.trend-up {
+  color: #00c853;
+}
+
+.stat-trend.trend-down {
+  color: #f44336;
+}

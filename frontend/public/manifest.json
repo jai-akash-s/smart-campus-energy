@@ -1,0 +1,24 @@
+{
+  "short_name": "Smart Campus",
+  "name": "Smart Campus Energy Monitor",
+  "description": "Real-time energy monitoring for PSG Institute of Technology",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "scope": "/",
+  "theme_color": "#10B981",
+  "background_color": "#ffffff",
+  "categories": ["productivity", "utilities"],
+  "screenshots": [
+    {
+      "src": "/screenshot.png",
+      "sizes": "540x720",
+      "type": "image/png"
+    }
+  ]
