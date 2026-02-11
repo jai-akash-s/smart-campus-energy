@@ -21,7 +21,7 @@ const Home = () => {
               Smart Campus <span className="text-blue-600">Energy Monitoring</span>
             </h1>
             <p className="text-xl text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
-              Real-time energy consumption monitoring and analytics for PSG Institute of Technology campus. Optimize energy usage, reduce costs, and track environmental impact.
+              Real-time energy consumption monitoring and analytics for. Optimize energy usage, reduce costs, and track environmental impact.
             </p>
             <div className="flex gap-4 justify-center">
               <Link to="/login" className="btn-primary px-8 py-3 text-lg">
@@ -83,7 +83,6 @@ const Home = () => {
           {/* CTA Section */}
           <div className="text-center">
             <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Ready to monitor energy?</h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-8">Join Coimbatore PSG Tech's smart energy initiative</p>
             <Link to="/register" className="btn-primary px-8 py-3 text-lg inline-block">
               Sign Up Now
             </Link>
@@ -93,7 +92,7 @@ const Home = () => {
         {/* Footer */}
         <footer className="border-t border-gray-200 dark:border-gray-700 mt-20 py-8">
           <div className="max-w-7xl mx-auto px-4 text-center text-gray-600 dark:text-gray-400">
-            <p>© 2026 Smart Campus Energy Monitoring • PSG Institute of Technology, Coimbatore</p>
+            <p>© 2026 Smart Campus Energy Monitoring</p>
           </div>
         </footer>
       </main>

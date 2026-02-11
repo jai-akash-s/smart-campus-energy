@@ -24,11 +24,15 @@
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
     
-    <!-- Service Worker -->
+    <!-- Service Worker (disabled on localhost to avoid stale caches during dev) -->
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('%PUBLIC_URL%/service-worker.js');
-        });
+        const host = window.location.hostname;
+        const isLocal = host === 'localhost' || host === '127.0.0.1';
+        if (!isLocal) {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('%PUBLIC_URL%/service-worker.js');
+          });
+        }
       }
     </script>

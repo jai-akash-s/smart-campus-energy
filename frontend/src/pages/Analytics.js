@@ -3,38 +3,65 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, AreaChart, Area 
 } from 'recharts';
-import { useAlerts } from '../hooks/useApi'; // Removed useEnergyReadings if not used
+import { useAlerts, useEnergyReadings } from '../hooks/useApi';
 import { LoadingSpinner } from '../components/Utils';
 import Navbar from '../components/Navbar';
 
 const Analytics = () => {
-  // Fixed: Removed 'readings' to resolve the ESLint 'no-unused-vars' warning
   const { alerts, loading: alertsLoading } = useAlerts();
+  const { readings } = useEnergyReadings();
   const [timeframe, setTimeframe] = useState('week');
 
   // 1. DATA GENERATION: Creating historical data based on timeframe
   const chartData = useMemo(() => {
+    const now = new Date();
     const length = timeframe === 'week' ? 7 : 12;
-    return Array.from({ length }, (_, i) => {
-      const date = new Date();
+    const buckets = Array.from({ length }, (_, i) => {
+      const date = new Date(now);
       if (timeframe === 'week') date.setDate(date.getDate() - (6 - i));
       else date.setMonth(date.getMonth() - (11 - i));
-
+      const key = timeframe === 'week'
+        ? date.toISOString().slice(0, 10)
+        : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       return {
-        label: timeframe === 'week' 
-          ? date.toLocaleDateString('en-US', { weekday: 'short' }) 
+        key,
+        label: timeframe === 'week'
+          ? date.toLocaleDateString('en-US', { weekday: 'short' })
           : date.toLocaleDateString('en-US', { month: 'short' }),
-        consumption: Math.floor(Math.random() * 200) + 350,
-        production: Math.floor(Math.random() * 150) + 120, 
-        cost: Math.floor(Math.random() * 3000) + 2000,
+        consumption: 0,
+        production: 0,
+        cost: 0
       };
     });
-  }, [timeframe]);
+
+    const byKey = new Map(buckets.map(b => [b.key, b]));
+    (readings || []).forEach(r => {
+      const ts = new Date(r.timestamp || r.createdAt || Date.now());
+      const key = timeframe === 'week'
+        ? ts.toISOString().slice(0, 10)
+        : `${ts.getFullYear()}-${String(ts.getMonth() + 1).padStart(2, '0')}`;
+      const bucket = byKey.get(key);
+      if (bucket) {
+        const energy = Number(r.energy_kwh || 0);
+        const cost = Number(r.cost || 0);
+        bucket.consumption += energy;
+        bucket.cost += cost;
+      }
+    });
+
+    return buckets.map(b => ({
+      label: b.label,
+      consumption: Number(b.consumption.toFixed(2)),
+      production: Number((b.consumption * 0.25).toFixed(2)),
+      cost: Number(b.cost.toFixed(2))
+    }));
+  }, [timeframe, readings]);
 
   // 2. ANALYTICS LOGIC: Dynamic efficiency calculation
   const systemEfficiency = useMemo(() => {
     const totalCons = chartData.reduce((acc, curr) => acc + curr.consumption, 0);
     const totalProd = chartData.reduce((acc, curr) => acc + curr.production, 0);
+    if (!totalCons) return '0.0';
     return ((totalProd / totalCons) * 100).toFixed(1);
   }, [chartData]);
 
@@ -88,6 +115,11 @@ End of Report
               ))}
             </div>
           </div>
+          {readings.length === 0 && (
+            <div className="mb-8 bg-yellow-50 text-yellow-800 border border-yellow-100 rounded-2xl px-4 py-3 text-sm font-semibold">
+              No energy readings found yet. Add data from the Dashboard to populate Analytics.
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
             {/* Trend Chart */}

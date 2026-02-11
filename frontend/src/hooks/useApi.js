@@ -15,7 +15,21 @@ export const useSensors = () => {
     try {
       setLoading(true);
       const response = await axios.get(`${API_URL}/sensors`);
-      setSensors(response.data);
+      const normalized = Array.isArray(response.data)
+        ? response.data.map((s, i) => ({
+            ...s,
+            sensorId: s.sensorId || s.sensor_id || (s._id ? `SENSOR-${s._id.slice(-4)}` : `SENSOR-${i + 1}`),
+            name: s.name || `Sensor ${s.sensorId || s.sensor_id || i + 1}`,
+            buildingName: s.buildingName || s.building?.name || 'Unknown',
+            status: s.status || 'inactive',
+            power: Number(s.power || 0),
+            voltage: Number(s.voltage || 0),
+            temp: Number(s.temp || s.temperature || 0),
+            temperature: Number(s.temperature || s.temp || 0),
+            timestamp: s.timestamp || s.lastUpdated || new Date().toISOString()
+          }))
+        : [];
+      setSensors(normalized);
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -62,7 +76,17 @@ export const useEnergyReadings = () => {
         url = `${API_URL}/energy/building/${building}`;
       }
       const response = await axios.get(url);
-      setReadings(response.data);
+      const data = response.data;
+      const list = Array.isArray(data) ? data : (data.readings || []);
+      const normalized = list.map((r, i) => ({
+        ...r,
+        id: r.id || r._id || `${r.buildingName || r.building || 'reading'}-${r.timestamp || i}`,
+        buildingName: r.buildingName || r.building?.name || r.building || 'Unknown',
+        energy_kwh: Number(r.energy_kwh || 0),
+        cost: Number(r.cost || 0),
+        timestamp: r.timestamp || r.createdAt || new Date().toISOString()
+      }));
+      setReadings(normalized);
       setError(null);
     } catch (err) {
       setError(err.message);

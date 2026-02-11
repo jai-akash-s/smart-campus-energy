@@ -8,6 +8,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 dotenv.config();
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -20,15 +21,14 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/smartcampus", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-}).then(() => console.log("MongoDB connected")).catch(err => console.log(err));
+// MongoDB Connection - FIXED (no deprecated options)
+mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/smartcampus")
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch(err => console.error("❌ MongoDB error:", err));
 
-// ==================== MODELS ====================
+// ==================== MODELS WITH PROPER INDEXES ====================
 
-// User Model
+// User Schema
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
@@ -46,11 +46,11 @@ userSchema.pre('save', async function(next) {
 
 const User = mongoose.model("User", userSchema);
 
-// Building Model
+// Building Schema
 const buildingSchema = new mongoose.Schema({
   name: String,
   code: { type: String, unique: true },
-  location: { type: String },
+  location: String,
   capacity: Number,
   manager: String,
   createdAt: { type: Date, default: Date.now }
@@ -58,9 +58,9 @@ const buildingSchema = new mongoose.Schema({
 
 const Building = mongoose.model("Building", buildingSchema);
 
-// Sensor Model
+// Sensor Schema WITH INDEXES ✅
 const sensorSchema = new mongoose.Schema({
-  sensorId: { type: String, unique: true },
+  sensorId: { type: String, unique: true, required: true },
   building: { type: mongoose.Schema.Types.ObjectId, ref: "Building" },
   buildingName: String,
   name: String,
@@ -75,9 +75,14 @@ const sensorSchema = new mongoose.Schema({
   lastUpdated: { type: Date, default: Date.now }
 });
 
+// FIXED: Schema-level indexes (NOT model.createIndex)
+sensorSchema.index({ sensorId: 1 });
+sensorSchema.index({ building: 1 });
+sensorSchema.index({ lastUpdated: -1 });
+
 const Sensor = mongoose.model("Sensor", sensorSchema);
 
-// Energy Reading Model
+// EnergyReading Schema WITH INDEXES ✅
 const energyReadingSchema = new mongoose.Schema({
   building: { type: mongoose.Schema.Types.ObjectId, ref: "Building" },
   buildingName: String,
@@ -88,9 +93,13 @@ const energyReadingSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now }
 });
 
+// FIXED: Schema-level indexes
+energyReadingSchema.index({ timestamp: -1 });
+energyReadingSchema.index({ buildingName: 1, timestamp: -1 });
+
 const EnergyReading = mongoose.model("EnergyReading", energyReadingSchema);
 
-// Alert Model
+// Alert Schema WITH INDEXES ✅
 const alertSchema = new mongoose.Schema({
   type: { type: String, enum: ["anomaly", "threshold", "maintenance"] },
   sensor: { type: mongoose.Schema.Types.ObjectId, ref: "Sensor" },
@@ -102,16 +111,18 @@ const alertSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+alertSchema.index({ status: 1, createdAt: -1 });
+alertSchema.index({ building: 1 });
+
 const Alert = mongoose.model("Alert", alertSchema);
 
 // ==================== AUTH MIDDLEWARE ====================
-
 const authMiddleware = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).json({ message: "No token provided" });
   
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your-secret-key");
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your-super-secret-key-2026");
     req.user = decoded;
     next();
   } catch (error) {
@@ -120,14 +131,22 @@ const authMiddleware = (req, res, next) => {
 };
 
 // ==================== AUTH ROUTES ====================
-
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
     const user = new User({ name, email, password, role: role || "viewer" });
     await user.save();
-    const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, process.env.JWT_SECRET || "your-secret-key");
-    res.status(201).json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role }, 
+      process.env.JWT_SECRET || "your-super-secret-key-2026"
+    );
+    res.status(201).json({ 
+      token, 
+      user: { id: user._id, name: user.name, email: user.email, role: user.role } 
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -137,13 +156,25 @@ app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
-    if (!user) return res.status(401).json({ message: "Invalid email or password" });
+    if (!user) return res.status(401).json({ message: "Invalid credentials" });
     
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(401).json({ message: "Invalid email or password" });
+    if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
     
-    const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, process.env.JWT_SECRET || "your-secret-key");
-    res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role, building: user.building } });
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role }, 
+      process.env.JWT_SECRET || "your-super-secret-key-2026"
+    );
+    res.json({ 
+      token, 
+      user: { 
+        id: user._id, 
+        name: user.name, 
+        email: user.email, 
+        role: user.role, 
+        building: user.building 
+      } 
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -159,10 +190,9 @@ app.get("/api/auth/me", authMiddleware, async (req, res) => {
 });
 
 // ==================== BUILDING ROUTES ====================
-
 app.get("/api/buildings", async (req, res) => {
   try {
-    const buildings = await Building.find();
+    const buildings = await Building.find().sort({ name: 1 });
     res.json(buildings);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -170,7 +200,7 @@ app.get("/api/buildings", async (req, res) => {
 });
 
 app.post("/api/buildings", authMiddleware, async (req, res) => {
-  if (req.user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Admin only" });
   try {
     const building = new Building(req.body);
     await building.save();
@@ -181,10 +211,20 @@ app.post("/api/buildings", authMiddleware, async (req, res) => {
 });
 
 // ==================== SENSOR ROUTES ====================
-
+const optionalAuth = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return next();
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your-super-secret-key-2026");
+    req.user = decoded;
+  } catch (error) {
+    // ignore invalid token for optional auth
+  }
+  next();
+};
 app.get("/api/sensors", async (req, res) => {
   try {
-    const sensors = await Sensor.find().populate("building");
+    const sensors = await Sensor.find().populate("building", "name code").sort({ buildingName: 1 });
     res.json(sensors);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -192,7 +232,7 @@ app.get("/api/sensors", async (req, res) => {
 });
 
 app.post("/api/sensors", authMiddleware, async (req, res) => {
-  if (req.user.role !== "admin") return res.status(403).json({ message: "Forbidden" });
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Admin only" });
   try {
     const sensor = new Sensor(req.body);
     await sensor.save();
@@ -203,10 +243,19 @@ app.post("/api/sensors", authMiddleware, async (req, res) => {
   }
 });
 
-app.put("/api/sensors/:id", authMiddleware, async (req, res) => {
+app.put("/api/sensors/:id", optionalAuth, async (req, res) => {
   try {
+    // Allow unauthenticated updates only for status toggle
+    if (!req.user) {
+      const keys = Object.keys(req.body || {});
+      if (keys.length !== 1 || !keys.includes("status")) {
+        return res.status(401).json({ message: "Auth required for this update" });
+      }
+    }
     const sensor = await Sensor.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    io.emit("sensor_updated", sensor);
+    if (sensor) {
+      io.emit("sensor_updated", sensor);
+    }
     res.json(sensor);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -214,11 +263,17 @@ app.put("/api/sensors/:id", authMiddleware, async (req, res) => {
 });
 
 // ==================== ENERGY ROUTES ====================
-
 app.get("/api/energy", async (req, res) => {
   try {
-    const readings = await EnergyReading.find().sort({ timestamp: -1 }).limit(100);
-    res.json(readings);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const readings = await EnergyReading.find()
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .skip((page - 1) * limit);
+    
+    const total = await EnergyReading.countDocuments();
+    res.json({ readings, total, page, pages: Math.ceil(total / limit) });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -226,6 +281,9 @@ app.get("/api/energy", async (req, res) => {
 
 app.post("/api/energy", async (req, res) => {
   try {
+    if (!req.body.buildingName || req.body.energy_kwh === undefined) {
+      return res.status(400).json({ message: "buildingName and energy_kwh required" });
+    }
     const reading = new EnergyReading(req.body);
     await reading.save();
     io.emit("energy_update", reading);
@@ -235,9 +293,24 @@ app.post("/api/energy", async (req, res) => {
   }
 });
 
+app.delete("/api/energy/:id", async (req, res) => {
+  try {
+    const deleted = await EnergyReading.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "Reading not found" });
+    res.json({ message: "Deleted", id: deleted._id });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
 app.get("/api/energy/building/:building", async (req, res) => {
   try {
-    const readings = await EnergyReading.find({ buildingName: req.params.building }).sort({ timestamp: -1 }).limit(50);
+    const hours = parseInt(req.query.hours) || 24;
+    const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
+    const readings = await EnergyReading.find({ 
+      buildingName: req.params.building, 
+      timestamp: { $gte: cutoff } 
+    }).sort({ timestamp: -1 });
     res.json(readings);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -246,22 +319,27 @@ app.get("/api/energy/building/:building", async (req, res) => {
 
 app.get("/api/energy/stats", async (req, res) => {
   try {
-    const now = new Date();
-    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const hours = parseInt(req.query.hours) || 24;
+    const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
+    const readings = await EnergyReading.find({ timestamp: { $gte: cutoff } });
     
-    const readings = await EnergyReading.find({ timestamp: { $gte: last24h } });
     const totalEnergy = readings.reduce((sum, r) => sum + (r.energy_kwh || 0), 0);
     const totalCost = readings.reduce((sum, r) => sum + (r.cost || 0), 0);
     const avgPower = readings.length ? totalEnergy / readings.length : 0;
     
-    res.json({ totalEnergy, totalCost, avgPower, readingsCount: readings.length });
+    res.json({ 
+      totalEnergy, 
+      totalCost, 
+      avgPower, 
+      readingsCount: readings.length,
+      period: `${hours}h`
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
 });
 
 // ==================== ALERT ROUTES ====================
-
 app.get("/api/alerts", async (req, res) => {
   try {
     const alerts = await Alert.find({ status: "active" }).sort({ createdAt: -1 }).limit(50);
@@ -285,58 +363,60 @@ app.post("/api/alerts", async (req, res) => {
 app.put("/api/alerts/:id", authMiddleware, async (req, res) => {
   try {
     const alert = await Alert.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    io.emit("alert_resolved", alert);
+    if (alert) {
+      io.emit("alert_resolved", alert);
+    }
     res.json(alert);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
 });
 
-// ==================== SOCKET.IO ====================
-
+// ==================== SOCKET.IO (FIXED) ====================
 io.on("connection", (socket) => {
-  console.log("Client connected:", socket.id);
+  console.log("🔌 Client connected:", socket.id);
   
   socket.on("sensor_data", async (data) => {
     try {
-      const sensor = await Sensor.findByIdAndUpdate(
-        data.sensorId,
+      const sensor = await Sensor.findOneAndUpdate(
+        { sensorId: data.sensorId },
         {
           power: data.power,
-          temp: data.temp,
-          voltage: data.voltage,
-          current: data.current,
+          temp: data.temp || 0,
+          voltage: data.voltage || 0,
+          current: data.current || 0,
           lastUpdated: new Date(),
           $push: { trend: { $each: [data.power], $slice: -10 } }
         },
-        { new: true }
+        { new: true, upsert: true }
       );
       io.emit("real_time_data", sensor);
+      console.log("📊 Sensor updated:", data.sensorId, data.power);
     } catch (error) {
-      console.error("Error updating sensor:", error);
+      console.error("❌ Sensor error:", error);
     }
   });
   
   socket.on("disconnect", () => {
-    console.log("Client disconnected:", socket.id);
+    console.log("🔌 Client disconnected:", socket.id);
   });
 });
 
 // ==================== SEED DATA ====================
-
 const seedDatabase = async () => {
   try {
     // Seed users
     const userCount = await User.countDocuments();
     if (userCount === 0) {
       await User.insertMany([
-        { name: "Admin User", email: "admin@example.com", password: "admin123", role: "admin", building: "Admin" },
+        { name: "Admin User", email: "admin@example.com", password: "admin123", role: "admin" },
         { name: "Operator User", email: "operator@example.com", password: "operator123", role: "operator", building: "Labs" },
         { name: "Viewer User", email: "viewer@example.com", password: "viewer123", role: "viewer", building: "Library" }
       ]);
-      console.log("Users created successfully!");
+      console.log("✅ Users seeded");
     }
 
+    // Seed buildings and sensors
     const buildingCount = await Building.countDocuments();
     if (buildingCount === 0) {
       const buildings = await Building.insertMany([
@@ -345,33 +425,28 @@ const seedDatabase = async () => {
         { name: "Library", code: "LIB-001", location: "Block C", capacity: 100, manager: "Mr. Kumar" },
         { name: "Admin", code: "ADM-001", location: "Block D", capacity: 75, manager: "Ms. Sharma" }
       ]);
-      
+
       const sensors = [
-        { sensorId: "lab101-ac", buildingName: "Labs", name: "Lab AC Unit 101", type: "ac", power: 2.47, temp: 24.3, threshold: 3.0 },
-        { sensorId: "lab102-ac", buildingName: "Labs", name: "Lab AC Unit 102", type: "ac", power: 2.15, temp: 23.8, threshold: 3.0 },
-        { sensorId: "lab101-light", buildingName: "Labs", name: "Lab Light 101", type: "light", power: 0.8, temp: 35, threshold: 1.0 },
-        { sensorId: "hst101-ac", buildingName: "Hostels", name: "Hostel AC Unit 101", type: "ac", power: 3.2, temp: 25.1, threshold: 3.5 },
-        { sensorId: "hst102-ac", buildingName: "Hostels", name: "Hostel AC Unit 102", type: "ac", power: 2.9, temp: 24.7, threshold: 3.5 },
-        { sensorId: "lib101-ac", buildingName: "Library", name: "Library AC Unit 101", type: "ac", power: 2.6, temp: 22.5, threshold: 3.0 },
-        { sensorId: "adm101-ac", buildingName: "Admin", name: "Admin AC Unit 101", type: "ac", power: 2.3, temp: 23.2, threshold: 3.0 },
-        { sensorId: "lab-meter", buildingName: "Labs", name: "Main Meter", type: "meter", power: 15.2, threshold: 20 },
-        { sensorId: "hst-meter", buildingName: "Hostels", name: "Main Meter", type: "meter", power: 22.5, threshold: 30 },
-        { sensorId: "lib-meter", buildingName: "Library", name: "Main Meter", type: "meter", power: 12.8, threshold: 20 },
-        { sensorId: "adm-meter", buildingName: "Admin", name: "Main Meter", type: "meter", power: 18.3, threshold: 25 },
-        { sensorId: "common-temp", buildingName: "Labs", name: "Campus Temperature", type: "temperature", temp: 28.5, power: 0 }
+        { sensorId: "lab101-ac", building: buildings[0]._id, buildingName: "Labs", name: "Lab AC 101", type: "ac", power: 2.47, temp: 24.3, threshold: 3.0 },
+        { sensorId: "lab-meter", building: buildings[0]._id, buildingName: "Labs", name: "Main Meter", type: "meter", power: 15.2, threshold: 20 },
+        { sensorId: "hst101-ac", building: buildings[1]._id, buildingName: "Hostels", name: "Hostel AC 101", type: "ac", power: 3.2, temp: 25.1, threshold: 3.5 },
+        { sensorId: "hst-meter", building: buildings[1]._id, buildingName: "Hostels", name: "Main Meter", type: "meter", power: 22.5, threshold: 30 },
+        { sensorId: "lib101-ac", building: buildings[2]._id, buildingName: "Library", name: "Library AC 101", type: "ac", power: 2.6, temp: 22.5, threshold: 3.0 }
       ];
       
       await Sensor.insertMany(sensors);
-      console.log("Database seeded successfully!");
+      console.log("✅ Buildings & Sensors seeded");
     }
   } catch (error) {
-    console.error("Error seeding database:", error);
+    console.error("❌ Seed error:", error);
   }
 };
 
 seedDatabase();
 
-// ==================== START SERVER ====================
-
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`📱 Frontend: ${process.env.FRONTEND_URL || "http://localhost:3000"}`);
+  console.log(`🔐 Login: admin@example.com / admin123`);
+});

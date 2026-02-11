@@ -6,119 +6,21 @@ import {
 } from 'recharts';
 import Navbar from '../components/Navbar';
 import { LoadingSkeleton } from '../components/Utils';
+import { useSensors } from '../hooks/useApi';
 
 const Sensors = () => {
-  const [sensors, setSensors] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { sensors, loading, error, updateSensor } = useSensors();
   const [connected, setConnected] = useState(false);
   const [filterType, setFilterType] = useState('all');
   const [filterBuilding, setFilterBuilding] = useState('all');
   const [sortBy, setSortBy] = useState('name');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Simulate real-time sensor data
-  useEffect(() => {
-    setLoading(true);
-    const timer = setTimeout(() => {
-      setSensors([
-        {
-          _id: '1',
-          sensorId: 'SENSOR-LAB101',
-          name: 'Lab 101 Main Power',
-          buildingName: 'Lab Block A',
-          type: 'meter',
-          status: 'active',
-          power: 2.45,
-          voltage: 223.5,
-          temperature: 24.8,
-          timestamp: new Date(Date.now() - 1000 * 60 * 5)
-        },
-        {
-          _id: '2',
-          sensorId: 'SENSOR-LAB102',
-          name: 'Lab 102 AC Unit',
-          buildingName: 'Lab Block A',
-          type: 'ac',
-          status: 'warning',
-          power: 1.85,
-          voltage: 218.2,
-          temperature: 28.3,
-          timestamp: new Date(Date.now() - 1000 * 60 * 3)
-        },
-        {
-          _id: '3',
-          sensorId: 'SENSOR-HALL01',
-          name: 'Lecture Hall Lights',
-          buildingName: 'Lecture Hall',
-          type: 'light',
-          status: 'active',
-          power: 0.95,
-          voltage: 225.1,
-          temperature: 26.1,
-          timestamp: new Date(Date.now() - 1000 * 60 * 2)
-        },
-        {
-          _id: '4',
-          sensorId: 'SENSOR-LIB001',
-          name: 'Library Temp Monitor',
-          buildingName: 'Library',
-          type: 'temperature',
-          status: 'inactive',
-          power: 0.0,
-          voltage: 0,
-          temperature: 22.5,
-          timestamp: new Date(Date.now() - 1000 * 60 * 10)
-        },
-        {
-          _id: '5',
-          sensorId: 'SENSOR-HOSTEL1',
-          name: 'Hostel Block Meter',
-          buildingName: 'Hostel Block',
-          type: 'meter',
-          status: 'active',
-          power: 3.25,
-          voltage: 227.8,
-          temperature: 25.2,
-          timestamp: new Date(Date.now() - 1000 * 30)
-        },
-        {
-          _id: '6',
-          sensorId: 'SENSOR-ADMIN1',
-          name: 'Admin AC Unit',
-          buildingName: 'Admin Block',
-          type: 'ac',
-          status: 'active',
-          power: 2.15,
-          voltage: 221.4,
-          temperature: 27.1,
-          timestamp: new Date(Date.now() - 1000 * 60)
-        }
-      ]);
-      setLoading(false);
-      setConnected(true);
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Real-time updates
   useEffect(() => {
     if (!loading) {
-      const interval = setInterval(() => {
-        setSensors(prev => 
-          prev.map(sensor => ({
-            ...sensor,
-            power: Math.max(0, (sensor.power || 0) + (Math.random() - 0.5) * 0.2),
-            voltage: Math.max(200, 220 + (Math.random() - 0.5) * 10),
-            temperature: Math.max(18, sensor.temperature + (Math.random() - 0.5)),
-            timestamp: new Date()
-          }))
-        );
-        setConnected(true);
-      }, 3000);
-      return () => clearInterval(interval);
+      setConnected(!error);
     }
-  }, [loading]);
+  }, [loading, error]);
 
   // Filter & Sort Logic
   const buildings = [...new Set(sensors.map(s => s.buildingName))];
@@ -129,16 +31,16 @@ const Sensors = () => {
     if (filterBuilding !== 'all') result = result.filter(s => s.buildingName === filterBuilding);
     if (searchTerm) {
       result = result.filter(s => 
-        s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.sensorId.toLowerCase().includes(searchTerm.toLowerCase())
+        (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (s.sensorId || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     switch (sortBy) {
-      case 'power-high': return result.sort((a, b) => b.power - a.power);
-      case 'power-low': return result.sort((a, b) => a.power - b.power);
-      case 'status': return result.sort((a, b) => a.status.localeCompare(b.status));
+      case 'power-high': return result.sort((a, b) => (b.power || 0) - (a.power || 0));
+      case 'power-low': return result.sort((a, b) => (a.power || 0) - (b.power || 0));
+      case 'status': return result.sort((a, b) => (a.status || '').localeCompare(b.status || ''));
       case 'name':
-      default: return result.sort((a, b) => a.name.localeCompare(b.name));
+      default: return result.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     }
   }, [sensors, filterType, filterBuilding, sortBy, searchTerm]);
 
@@ -208,7 +110,10 @@ const Sensors = () => {
             <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-6 border border-gray-100 col-span-1 md:col-span-2">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Power Consumption Overview</h3>
               <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={filteredSensors.map(s => ({ time: s.sensorId.slice(-4), power: s.power }))}>
+                <AreaChart data={filteredSensors.map((s, i) => ({
+                  time: (s.sensorId ? s.sensorId.slice(-4) : `S${i + 1}`),
+                  power: Number(s.power || 0)
+                }))}>
                   <defs>
                     <linearGradient id="powerColor" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#10b981" stopOpacity={0.8} />
@@ -322,29 +227,29 @@ const Sensors = () => {
                   <div className="space-y-4 mb-8">
                     <div className="flex justify-between items-baseline border-b border-gray-100 pb-3">
                       <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Power</span>
-                      <span className="text-3xl font-black text-green-600">{sensor.power.toFixed(2)} kW</span>
+                      <span className="text-3xl font-black text-green-600">{Number(sensor.power || 0).toFixed(2)} kW</span>
                     </div>
                     <div className="flex justify-between items-baseline border-b border-gray-100 pb-3">
                       <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Voltage</span>
-                      <span className="text-2xl font-bold text-blue-600">{sensor.voltage.toFixed(1)}V</span>
+                      <span className="text-2xl font-bold text-blue-600">{Number(sensor.voltage || 0).toFixed(1)}V</span>
                     </div>
                     <div className="flex justify-between items-baseline">
                       <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Temperature</span>
-                      <span className="text-xl font-bold text-orange-600">{sensor.temperature.toFixed(1)}°C</span>
+                      <span className="text-xl font-bold text-orange-600">{Number(sensor.temperature ?? sensor.temp ?? 0).toFixed(1)}°C</span>
                     </div>
                   </div>
                   
                   {/* WORKING BUTTONS - FULL FUNCTIONALITY */}
                   <div className="flex gap-3">
                     <button 
-                      onClick={() => {
-                        // Toggle sensor status - FULLY WORKING
-                        setSensors(prev => prev.map(s => 
-                          s._id === sensor._id 
-                            ? { ...s, status: s.status === 'active' ? 'inactive' : 'active' }
-                            : s
-                        ));
-                        console.log(`✅ Toggled sensor ${sensor.sensorId} to ${sensor.status === 'active' ? 'inactive' : 'active'}`);
+                      onClick={async () => {
+                        const nextStatus = sensor.status === 'active' ? 'inactive' : 'active';
+                        try {
+                          await updateSensor(sensor._id, { status: nextStatus });
+                          console.log(`✅ Toggled sensor ${sensor.sensorId} to ${nextStatus}`);
+                        } catch (e) {
+                          alert('❌ Failed to update sensor. Please login as admin.');
+                        }
                       }}
                       className={`flex-1 py-3 px-6 rounded-xl font-bold text-lg shadow-lg transform transition-all duration-200 hover:scale-105 active:scale-95 ${
                         sensor.status === 'active'
@@ -358,7 +263,7 @@ const Sensors = () => {
                     <button 
                       onClick={() => {
                         // Detailed sensor info
-                        const details = `Sensor Details:\n\n🆔 ID: ${sensor.sensorId}\n🏢 Building: ${sensor.buildingName}\n⚙️ Type: ${sensor.type}\n📊 Power: ${sensor.power.toFixed(2)} kW\n⚡ Voltage: ${sensor.voltage.toFixed(1)}V\n🌡️ Temp: ${sensor.temperature.toFixed(1)}°C\n📡 Status: ${sensor.status}`;
+                        const details = `Sensor Details:\n\n🆔 ID: ${sensor.sensorId}\n🏢 Building: ${sensor.buildingName}\n⚙️ Type: ${sensor.type}\n📊 Power: ${Number(sensor.power || 0).toFixed(2)} kW\n⚡ Voltage: ${Number(sensor.voltage || 0).toFixed(1)}V\n🌡️ Temp: ${Number(sensor.temperature ?? sensor.temp ?? 0).toFixed(1)}°C\n📡 Status: ${sensor.status}`;
                         alert(details);
                         console.log('📋 Details clicked for:', sensor);
                       }}
@@ -370,7 +275,7 @@ const Sensors = () => {
                   
                   {/* Timestamp */}
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-4 text-right font-medium">
-                    Updated {new Date(sensor.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    Updated {new Date(sensor.timestamp || sensor.lastUpdated || Date.now()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                   </p>
                 </div>
               ))}
@@ -394,3 +299,6 @@ const Sensors = () => {
 };
 
 export default Sensors;
+
+
+

@@ -8,6 +8,8 @@ import StatCard from '../components/StatCard';
 import { LoadingSkeleton } from '../components/Utils';
 import Navbar from '../components/Navbar';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
 const Dashboard = () => {
   const [readings, setReadings] = useState([]);
   const [sensors, setSensors] = useState([]);
@@ -15,60 +17,92 @@ const Dashboard = () => {
   const [stats, setStats] = useState(null);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState('');
 
-  // MOCK REAL-TIME DATA (replace with your API later)
+  // Load buildings and sensors from backend
   useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => setLoading(false), 1500);
-
-    // Mock buildings
-    setBuildings([
-      { id: 1, name: 'Lab Block A' },
-      { id: 2, name: 'Lecture Hall' },
-      { id: 3, name: 'Library' },
-      { id: 4, name: 'Hostel Block' },
-      { id: 5, name: 'Admin Block' }
-    ]);
-
-    // Mock sensors
-    setSensors([
-      { id: 1, name: 'Sensor-Lab101', status: 'active', building: 'Lab Block A' },
-      { id: 2, name: 'Sensor-Lab102', status: 'warning', building: 'Lab Block A' },
-      { id: 3, name: 'Sensor-Hall1', status: 'active', building: 'Lecture Hall' },
-      { id: 4, name: 'Sensor-Lib1', status: 'inactive', building: 'Library' },
-      { id: 5, name: 'Sensor-Hostel1', status: 'active', building: 'Hostel Block' }
-    ]);
-
-    return () => clearTimeout(timer);
+    let isMounted = true;
+    const loadInitial = async () => {
+      try {
+        const [bRes, sRes] = await Promise.all([
+          fetch(`${API_URL}/buildings`),
+          fetch(`${API_URL}/sensors`)
+        ]);
+        const [bData, sData] = await Promise.all([bRes.json(), sRes.json()]);
+        if (isMounted) {
+          setBuildings(Array.isArray(bData) ? bData : []);
+          setSensors(Array.isArray(sData) ? sData : []);
+        }
+      } catch (e) {
+        // leave empty on failure
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    loadInitial();
+    return () => { isMounted = false; };
   }, []);
 
-  // Simulate real-time energy readings
+  // Refresh sensors so status changes persist across pages
   useEffect(() => {
-    if (!loading) {
-      const interval = setInterval(() => {
-        const now = new Date();
-        const newReading = {
-          id: Date.now(),
-          timestamp: now.toISOString(),
-          energy_kwh: (2 + Math.random() * 3).toFixed(2),
-          cost: (15 + Math.random() * 10).toFixed(2),
-          buildingName: buildings[Math.floor(Math.random() * buildings.length)]?.name,
-          voltage: (220 + (Math.random() - 0.5) * 20).toFixed(1)
-        };
-        
-        setReadings(prev => [newReading, ...prev.slice(0, 100)]);
-        setConnected(true);
-      }, 3000); // Update every 3 seconds
+    if (loading) return;
+    const fetchSensors = () => {
+      fetch(`${API_URL}/sensors`)
+        .then(res => res.json())
+        .then(data => {
+          const normalized = Array.isArray(data)
+            ? data.map((s, i) => ({
+                ...s,
+                sensorId: s.sensorId || s.sensor_id || (s._id ? `SENSOR-${s._id.slice(-4)}` : `SENSOR-${i + 1}`),
+                name: s.name || `Sensor ${s.sensorId || s.sensor_id || i + 1}`,
+                buildingName: s.buildingName || s.building?.name || 'Unknown',
+                status: s.status || 'inactive'
+              }))
+            : [];
+          setSensors(normalized);
+        })
+        .catch(() => {
+          // ignore for now
+        });
+    };
+    fetchSensors();
+    const interval = setInterval(fetchSensors, 5000);
+    return () => clearInterval(interval);
+  }, [loading]);
 
-      return () => clearInterval(interval);
-    }
-  }, [loading, buildings]);
+  // Load and refresh energy readings from backend
+  useEffect(() => {
+    if (loading) return;
+    const fetchReadings = () => {
+      fetch(`${API_URL}/energy?limit=100`)
+        .then(res => res.json())
+        .then(data => {
+          const list = Array.isArray(data) ? data : (data.readings || []);
+          const normalized = list.map((r, i) => ({
+            ...r,
+            id: r._id || r.id || `${r.buildingName || r.building || "reading"}-${r.timestamp || i}`,
+            buildingName: r.buildingName || r.building?.name || r.building || 'Unknown',
+            energy_kwh: Number(r.energy_kwh || 0),
+            cost: Number(r.cost || 0),
+            timestamp: r.timestamp || r.createdAt || new Date().toISOString()
+          }));
+          setReadings(normalized);
+          if (normalized.length > 0) setConnected(true);
+        })
+        .catch(() => {
+          setConnected(false);
+        });
+    };
+    fetchReadings();
+    const interval = setInterval(fetchReadings, 3000);
+    return () => clearInterval(interval);
+  }, [loading]);
 
   // Calculate stats
   useEffect(() => {
     if (readings.length > 0) {
-      const totalEnergy = readings.reduce((sum, r) => sum + parseFloat(r.energy_kwh), 0);
-      const totalCost = readings.reduce((sum, r) => sum + parseFloat(r.cost), 0);
+      const totalEnergy = readings.reduce((sum, r) => sum + (Number(r.energy_kwh) || 0), 0);
+      const totalCost = readings.reduce((sum, r) => sum + (Number(r.cost) || 0), 0);
       const avgPower = totalEnergy / readings.length;
 
       setStats({
@@ -82,13 +116,13 @@ const Dashboard = () => {
   // Data processing
   const last24hData = readings.slice(0, 24).reverse().map(r => ({
     time: new Date(r.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-    energy: parseFloat(r.energy_kwh),
-    cost: parseFloat(r.cost)
+    energy: Number(r.energy_kwh) || 0,
+    cost: Number(r.cost) || 0
   }));
 
   const buildingData = buildings.map(b => {
     const buildingReadings = readings.filter(r => r.buildingName === b.name);
-    const total = buildingReadings.reduce((sum, r) => sum + parseFloat(r.energy_kwh), 0);
+    const total = buildingReadings.reduce((sum, r) => sum + (Number(r.energy_kwh) || 0), 0);
     return {
       name: b.name,
       energy: parseFloat(total.toFixed(2)),
@@ -126,14 +160,146 @@ const Dashboard = () => {
             <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent dark:from-white dark:to-gray-300 mb-2">
               Smart Campus Energy Dashboard
             </h1>
+            {notice && (
+              <div className="mt-3 inline-flex items-center gap-2 bg-emerald-50 text-emerald-800 px-4 py-2 rounded-xl text-sm font-semibold border border-emerald-100">
+                {notice}
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <span className={`inline-block w-3 h-3 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
               <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
                 {connected ? '🔴 LIVE DATA' : 'Offline Mode'} • {readings.length} readings • Last update: {new Date().toLocaleTimeString()}
               </p>
+              <span className="text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-700">
+                Inactive Sensors: {sensorStatus.inactive}
+              </span>
             </div>
           </div>
 
+<div className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-8 rounded-3xl shadow-2xl mb-10 border border-white/10">
+  <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
+    ➕ Add Energy Reading 
+    <span className={`w-3 h-3 rounded-full ${connected ? 'bg-green-300 animate-pulse' : 'bg-white/30'}`}></span>
+  </h3>
+  
+  <form onSubmit={(e) => {
+    e.preventDefault();
+    
+    const energyValue = parseFloat(e.target.energy_kwh.value);
+    const costValueRaw = e.target.cost.value;
+    const costValue = costValueRaw === '' || costValueRaw === null
+      ? Number((energyValue * 15).toFixed(2))
+      : parseFloat(costValueRaw) || 0;
+
+    const formData = {
+      buildingName: e.target.buildingName.value,
+      energy_kwh: energyValue,
+      voltage: parseFloat(e.target.voltage.value) || 230,
+      current: parseFloat(e.target.current.value) || 0,
+      cost: costValue,
+      timestamp: new Date().toISOString()
+    };
+
+    fetch(`${API_URL}/energy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData)
+    })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to save reading');
+      }
+      return data;
+    })
+    .then(data => {
+      const saved = {
+        ...data,
+        id: data.id || data._id || Date.now()
+      };
+      setReadings(prev => [saved, ...prev.slice(0, 100)]);
+      setConnected(true);
+      setNotice('Energy reading saved to database.');
+      setTimeout(() => setNotice(''), 3000);
+      e.target.reset();
+    })
+    .catch(err => alert('❌ Error: ' + err.message));
+  }} className="grid grid-cols-1 md:grid-cols-6 gap-4">
+    
+    {/* BUILDING SELECT - Fixed for visibility */}
+    <div className="md:col-span-2">
+      <label className="block text-xs font-bold uppercase tracking-wider mb-2 opacity-80">Location</label>
+      <select 
+        name="buildingName" 
+        className="w-full p-4 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 focus:ring-4 focus:ring-white/20 text-white font-bold text-lg cursor-pointer outline-none transition-all"
+        defaultValue="Labs" 
+        required
+      >
+        {/* Style tag applied to options to ensure they are visible in the dropdown menu */}
+        <option value="Labs" className="text-gray-900 bg-white">Labs</option>
+        <option value="Hostels" className="text-gray-900 bg-white">Hostels</option>
+        <option value="Library" className="text-gray-900 bg-white">Library</option>
+        <option value="Admin" className="text-gray-900 bg-white">Admin</option>
+      </select>
+    </div>
+    
+    {/* ENERGY INPUT */}
+    <div className="md:col-span-2">
+      <label className="block text-xs font-bold uppercase tracking-wider mb-2 opacity-80">Energy (kWh)</label>
+      <input 
+        name="energy_kwh" 
+        type="number" 
+        step="0.01" 
+        placeholder="0.00" 
+        className="w-full p-4 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 focus:ring-4 focus:ring-white/20 text-white placeholder-white/60 font-bold text-lg outline-none" 
+        required 
+      />
+    </div>
+    
+    {/* VOLTAGE INPUT */}
+    <div className="md:col-span-2">
+      <label className="block text-xs font-bold uppercase tracking-wider mb-2 opacity-80">Voltage (V)</label>
+      <input 
+        name="voltage" 
+        type="number" 
+        placeholder="230" 
+        className="w-full p-4 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 focus:ring-4 focus:ring-white/20 text-white placeholder-white/60 font-bold text-lg outline-none" 
+      />
+    </div>
+    
+    {/* CURRENT INPUT */}
+    <div className="md:col-span-3">
+      <label className="block text-xs font-bold uppercase tracking-wider mb-2 opacity-80">Current (Amps)</label>
+      <input 
+        name="current" 
+        type="number" 
+        step="0.1" 
+        placeholder="0.0 A" 
+        className="w-full p-4 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 focus:ring-4 focus:ring-white/20 text-white placeholder-white/60 font-bold text-lg outline-none" 
+      />
+    </div>
+    
+    {/* COST INPUT */}
+    <div className="md:col-span-3">
+      <label className="block text-xs font-bold uppercase tracking-wider mb-2 opacity-80">Estimated Cost (₹)</label>
+      <input 
+        name="cost" 
+        type="number" 
+        step="0.1" 
+        placeholder="₹ 0.00" 
+        className="w-full p-4 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 focus:ring-4 focus:ring-white/20 text-white placeholder-white/60 font-bold text-lg outline-none" 
+      />
+    </div>
+    
+    {/* SUBMIT BUTTON */}
+    <button 
+      type="submit" 
+      className="md:col-span-6 mt-2 bg-white text-teal-700 font-black py-5 px-8 rounded-2xl hover:bg-emerald-50 hover:shadow-[0_20px_50px_rgba(0,0,0,0.2)] hover:-translate-y-1 active:scale-95 transition-all duration-200 text-xl uppercase tracking-widest"
+    >
+      💾 Save to Database
+    </button>
+  </form>
+</div>
           {/* Key Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
             <StatCard
@@ -394,7 +560,34 @@ const Dashboard = () => {
             <p className="text-3xl font-black bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
               {parseFloat(reading.energy_kwh).toFixed(1)} kWh
             </p>
-            <p className="text-green-600 font-semibold mt-1">₹{reading.cost}</p>
+            <div className="flex items-center justify-end gap-3 mt-1">
+              <p className="text-green-600 font-semibold">Rs {reading.cost}</p>
+              <button
+                onClick={() => {
+                  const mongoId = reading._id || (typeof reading.id === 'string' && reading.id.length === 24 ? reading.id : null);
+                  if (!mongoId) {
+                    setNotice('Cannot delete: missing database id.');
+                    setTimeout(() => setNotice(''), 3000);
+                    return;
+                  }
+                  fetch(`${API_URL}/energy/${mongoId}`, { method: 'DELETE' })
+                    .then(async res => {
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok) throw new Error(data.message || `Delete failed (${res.status})`);
+                      setReadings(prev => prev.filter(r => (r._id || r.id) !== mongoId));
+                      setNotice('Reading deleted.');
+                      setTimeout(() => setNotice(''), 3000);
+                    })
+                    .catch(err => {
+                      setNotice('Delete failed. ' + err.message);
+                      setTimeout(() => setNotice(''), 3000);
+                    });
+                }}
+                className="text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       ))}
@@ -409,3 +602,8 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+
+
+
+
