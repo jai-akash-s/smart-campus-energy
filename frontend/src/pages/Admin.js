@@ -84,12 +84,12 @@ const Admin = () => {
 
           {/* Tabs */}
           <div className="card p-0 mb-6 rounded-t-xl">
-            <div className="flex border-b border-gray-200 dark:border-gray-700">
+            <div className="flex flex-nowrap overflow-x-auto border-b border-gray-200 dark:border-gray-700">
               {['sensors', 'energy', 'buildings', 'users', 'settings'].map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`flex-1 px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                  className={`flex-none px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === tab
                       ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                       : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
