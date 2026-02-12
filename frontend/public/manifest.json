@@ -1,7 +1,7 @@
 {
   "short_name": "Smart Campus",
   "name": "Smart Campus Energy Monitor",
-  "description": "Real-time energy monitoring for PSG Institute of Technology",
+  "description": "Real-time smart campus energy monitoring system",
   "icons": [
     {
       "src": "favicon.ico",
@@ -22,3 +22,4 @@
       "type": "image/png"
     }
   ]
+}
