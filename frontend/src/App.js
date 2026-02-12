@@ -14,6 +14,8 @@ import Analytics from './pages/Analytics';
 import Admin from './pages/Admin';
 
 function App() {
+  const ADMIN_EMAIL = 'akash.saravanan1797@gmail.com';
+
   return (
     <ErrorBoundary>
       <Router>
@@ -52,7 +54,7 @@ function App() {
             <Route
               path="/admin"
               element={
-                <ProtectedRoute requiredRole="admin">
+                <ProtectedRoute requiredRole="admin" requiredEmail={ADMIN_EMAIL}>
                   <Admin />
                 </ProtectedRoute>
               }

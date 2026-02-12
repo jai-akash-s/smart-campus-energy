@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
+  const ADMIN_EMAIL = 'akash.saravanan1797@gmail.com';
   const { user, logout, isAuthenticated } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -26,6 +27,8 @@ const Navbar = () => {
     setIsDarkMode(!isDarkMode);
     document.documentElement.classList.toggle('dark', !isDarkMode);
   };
+
+  const canAccessAdmin = user?.role === 'admin' && String(user?.email || '').toLowerCase() === ADMIN_EMAIL;
 
   return (
     <nav className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
@@ -56,7 +59,7 @@ const Navbar = () => {
               <Link to="/analytics" className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
                 Analytics
               </Link>
-              {user?.role === 'admin' && (
+              {canAccessAdmin && (
                 <Link to="/admin" className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
                   Admin
                 </Link>
@@ -128,7 +131,7 @@ const Navbar = () => {
             <Link to="/analytics" className="block px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
               Analytics
             </Link>
-            {user?.role === 'admin' && (
+            {canAccessAdmin && (
               <Link to="/admin" className="block px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
                 Admin
               </Link>
