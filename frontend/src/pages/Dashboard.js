@@ -1,4 +1,4 @@
-// src/pages/Dashboard.jsx - FULLY PRODUCTION-READY VERSION
+
 import React, { useState, useEffect } from 'react';
 import { 
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
