@@ -20,8 +20,11 @@ const Home = () => {
             <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6">
               Smart Campus <span className="text-blue-600">Energy Monitoring</span>
             </h1>
-            <p className="text-xl text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
-              Real-time energy consumption monitoring and analytics for. Optimize energy usage, reduce costs, and track environmental impact.
+            <p className="text-xl text-gray-600 dark:text-gray-400 mb-3 max-w-3xl mx-auto">
+              Smart Energy Monitor - Public Insights, Admin-Controlled Management
+            </p>
+            <p className="text-base text-gray-500 dark:text-gray-400 mb-8 max-w-3xl mx-auto">
+              Access: Viewer for all users, Management for admin only
             </p>
             <div className="flex gap-4 justify-center">
               <Link to="/login" className="btn-primary px-8 py-3 text-lg">

@@ -189,6 +189,68 @@ export const useBuildings = () => {
   return { buildings, loading, error, fetchBuildings };
 };
 
+// Hook for users (admin only)
+export const useUsers = () => {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { token } = useAuth();
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${API_URL}/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUsers(Array.isArray(response.data) ? response.data : []);
+      setError(null);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
+      console.error('Error fetching users:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  const updateUserRole = useCallback(async (userId, role) => {
+    try {
+      const response = await axios.put(
+        `${API_URL}/users/${userId}/role`,
+        { role },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setUsers(prev => prev.map(u => (u._id === userId || u.id === userId ? { ...u, ...response.data } : u)));
+      return response.data;
+    } catch (err) {
+      console.error('Error updating user role:', err);
+      throw err;
+    }
+  }, [token]);
+
+  const deleteUser = useCallback(async (userId) => {
+    try {
+      await axios.delete(`${API_URL}/users/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUsers(prev => prev.filter(u => (u._id || u.id) !== userId));
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      throw err;
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) {
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
+    fetchUsers();
+  }, [token, fetchUsers]);
+
+  return { users, loading, error, fetchUsers, updateUserRole, deleteUser };
+};
+
 // Hook for generating predictions (simulated)
 export const usePredictions = (sensorId) => {
   const [predictions, setPredictions] = useState([]);

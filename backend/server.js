@@ -6,8 +6,19 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const http = require("http");
 const { Server } = require("socket.io");
+let OAuth2Client = null;
+try {
+  ({ OAuth2Client } = require("google-auth-library"));
+} catch (error) {
+  OAuth2Client = null;
+}
 
 dotenv.config();
+const ADMIN_EMAIL = "akash.saravanan1797@gmail.com";
+const ADMIN_NAME = "Akash";
+const JWT_SECRET = process.env.JWT_SECRET || "your-super-secret-key-2026";
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
+const googleClient = GOOGLE_CLIENT_ID && OAuth2Client ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
 const app = express();
 const server = http.createServer(app);
@@ -122,7 +133,7 @@ const authMiddleware = (req, res, next) => {
   if (!token) return res.status(401).json({ message: "No token provided" });
   
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your-super-secret-key-2026");
+    const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     next();
   } catch (error) {
@@ -130,18 +141,45 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
+const adminOnly = (req, res, next) => {
+  const userEmail = String(req.user?.email || "").toLowerCase();
+  if (req.user?.role !== "admin" || userEmail !== ADMIN_EMAIL) {
+    return res.status(403).json({ message: "Only Akash admin account can manage this system" });
+  }
+  next();
+};
+
+const operatorOrAdmin = (req, res, next) => {
+  const role = req.user?.role;
+  const userEmail = String(req.user?.email || "").toLowerCase();
+  const isPrimaryAdmin = role === "admin" && userEmail === ADMIN_EMAIL;
+  const isOperator = role === "operator";
+
+  if (!isPrimaryAdmin && !isOperator) {
+    return res.status(403).json({ message: "Operator or admin access required" });
+  }
+  next();
+};
+
 // ==================== AUTH ROUTES ====================
 app.post("/api/auth/register", async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ message: "Missing required fields" });
     }
-    const user = new User({ name, email, password, role: role || "viewer" });
+    const normalizedEmail = String(email).toLowerCase();
+    const isAdminAccount = normalizedEmail === ADMIN_EMAIL;
+    const user = new User({
+      name: isAdminAccount ? ADMIN_NAME : name,
+      email: normalizedEmail,
+      password,
+      role: isAdminAccount ? "admin" : "viewer"
+    });
     await user.save();
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role }, 
-      process.env.JWT_SECRET || "your-super-secret-key-2026"
+      JWT_SECRET
     );
     res.status(201).json({ 
       token, 
@@ -155,7 +193,8 @@ app.post("/api/auth/register", async (req, res) => {
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const normalizedEmail = String(email).toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) return res.status(401).json({ message: "Invalid credentials" });
     
     const isMatch = await bcrypt.compare(password, user.password);
@@ -163,7 +202,7 @@ app.post("/api/auth/login", async (req, res) => {
     
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role }, 
-      process.env.JWT_SECRET || "your-super-secret-key-2026"
+      JWT_SECRET
     );
     res.json({ 
       token, 
@@ -189,6 +228,68 @@ app.get("/api/auth/me", authMiddleware, async (req, res) => {
   }
 });
 
+// ==================== USER MANAGEMENT ROUTES ====================
+app.get("/api/users", authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const users = await User.find()
+      .select("-password")
+      .sort({ createdAt: -1 });
+    res.json(users);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+app.put("/api/users/:id/role", authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const { role } = req.body || {};
+    const validRoles = ["admin", "operator", "viewer"];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ message: "Invalid role" });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (String(user.email).toLowerCase() === ADMIN_EMAIL) {
+      return res.status(400).json({ message: "Cannot change primary admin role" });
+    }
+
+    user.role = role;
+    await user.save();
+    res.json({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      building: user.building,
+      createdAt: user.createdAt
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+app.delete("/api/users/:id", authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const userEmail = String(user.email || "").toLowerCase();
+    if (userEmail === ADMIN_EMAIL) {
+      return res.status(400).json({ message: "Cannot delete primary admin account" });
+    }
+    if (String(user._id) === String(req.user.id)) {
+      return res.status(400).json({ message: "Cannot delete your own account" });
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: "User deleted", id: req.params.id });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
 // ==================== BUILDING ROUTES ====================
 app.get("/api/buildings", async (req, res) => {
   try {
@@ -199,8 +300,7 @@ app.get("/api/buildings", async (req, res) => {
   }
 });
 
-app.post("/api/buildings", authMiddleware, async (req, res) => {
-  if (req.user.role !== "admin") return res.status(403).json({ message: "Admin only" });
+app.post("/api/buildings", authMiddleware, adminOnly, async (req, res) => {
   try {
     const building = new Building(req.body);
     await building.save();
@@ -211,17 +311,6 @@ app.post("/api/buildings", authMiddleware, async (req, res) => {
 });
 
 // ==================== SENSOR ROUTES ====================
-const optionalAuth = (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return next();
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your-super-secret-key-2026");
-    req.user = decoded;
-  } catch (error) {
-    // ignore invalid token for optional auth
-  }
-  next();
-};
 app.get("/api/sensors", async (req, res) => {
   try {
     const sensors = await Sensor.find().populate("building", "name code").sort({ buildingName: 1 });
@@ -231,8 +320,7 @@ app.get("/api/sensors", async (req, res) => {
   }
 });
 
-app.post("/api/sensors", authMiddleware, async (req, res) => {
-  if (req.user.role !== "admin") return res.status(403).json({ message: "Admin only" });
+app.post("/api/sensors", authMiddleware, adminOnly, async (req, res) => {
   try {
     const sensor = new Sensor(req.body);
     await sensor.save();
@@ -243,15 +331,8 @@ app.post("/api/sensors", authMiddleware, async (req, res) => {
   }
 });
 
-app.put("/api/sensors/:id", optionalAuth, async (req, res) => {
+app.put("/api/sensors/:id", authMiddleware, operatorOrAdmin, async (req, res) => {
   try {
-    // Allow unauthenticated updates only for status toggle
-    if (!req.user) {
-      const keys = Object.keys(req.body || {});
-      if (keys.length !== 1 || !keys.includes("status")) {
-        return res.status(401).json({ message: "Auth required for this update" });
-      }
-    }
     const sensor = await Sensor.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (sensor) {
       io.emit("sensor_updated", sensor);
@@ -279,7 +360,7 @@ app.get("/api/energy", async (req, res) => {
   }
 });
 
-app.post("/api/energy", async (req, res) => {
+app.post("/api/energy", authMiddleware, operatorOrAdmin, async (req, res) => {
   try {
     if (!req.body.buildingName || req.body.energy_kwh === undefined) {
       return res.status(400).json({ message: "buildingName and energy_kwh required" });
@@ -293,7 +374,60 @@ app.post("/api/energy", async (req, res) => {
   }
 });
 
-app.delete("/api/energy/:id", async (req, res) => {
+app.post("/api/auth/google", async (req, res) => {
+  try {
+    if (!googleClient) {
+      return res.status(500).json({ message: "Google auth is not configured on server" });
+    }
+    const { credential } = req.body || {};
+    if (!credential) return res.status(400).json({ message: "Missing Google credential" });
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: GOOGLE_CLIENT_ID
+    });
+    const payload = ticket.getPayload();
+    const email = String(payload?.email || "").toLowerCase();
+    const name = payload?.name || ADMIN_NAME;
+
+    if (!payload?.email_verified || email !== ADMIN_EMAIL) {
+      return res.status(403).json({ message: "Only Akash admin Google account is allowed" });
+    }
+
+    let user = await User.findOne({ email: ADMIN_EMAIL });
+    if (!user) {
+      user = new User({
+        name: ADMIN_NAME,
+        email: ADMIN_EMAIL,
+        password: Math.random().toString(36).slice(-16),
+        role: "admin"
+      });
+    } else {
+      user.name = name || ADMIN_NAME;
+      user.role = "admin";
+    }
+    await user.save();
+
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      JWT_SECRET
+    );
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        building: user.building
+      }
+    });
+  } catch (error) {
+    res.status(401).json({ message: "Google authentication failed" });
+  }
+});
+
+app.delete("/api/energy/:id", authMiddleware, adminOnly, async (req, res) => {
   try {
     const deleted = await EnergyReading.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ message: "Reading not found" });
@@ -349,7 +483,7 @@ app.get("/api/alerts", async (req, res) => {
   }
 });
 
-app.post("/api/alerts", async (req, res) => {
+app.post("/api/alerts", authMiddleware, adminOnly, async (req, res) => {
   try {
     const alert = new Alert(req.body);
     await alert.save();
@@ -360,7 +494,7 @@ app.post("/api/alerts", async (req, res) => {
   }
 });
 
-app.put("/api/alerts/:id", authMiddleware, async (req, res) => {
+app.put("/api/alerts/:id", authMiddleware, operatorOrAdmin, async (req, res) => {
   try {
     const alert = await Alert.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (alert) {
@@ -409,7 +543,7 @@ const seedDatabase = async () => {
     const userCount = await User.countDocuments();
     if (userCount === 0) {
       await User.insertMany([
-        { name: "Admin User", email: "admin@example.com", password: "admin123", role: "admin" },
+        { name: ADMIN_NAME, email: ADMIN_EMAIL, password: "admin123", role: "admin" },
         { name: "Operator User", email: "operator@example.com", password: "operator123", role: "operator", building: "Labs" },
         { name: "Viewer User", email: "viewer@example.com", password: "viewer123", role: "viewer", building: "Library" }
       ]);
@@ -448,5 +582,5 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📱 Frontend: ${process.env.FRONTEND_URL || "http://localhost:3000"}`);
-  console.log(`🔐 Login: admin@example.com / admin123`);
+  console.log(`🔐 Admin Login: ${ADMIN_EMAIL} / admin123`);
 });

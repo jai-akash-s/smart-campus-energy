@@ -7,10 +7,15 @@ import {
 import StatCard from '../components/StatCard';
 import { LoadingSkeleton } from '../components/Utils';
 import Navbar from '../components/Navbar';
+import { useAuth } from '../context/AuthContext';
+import './Dashboard.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const Dashboard = () => {
+  const { user, token } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const canOperate = user?.role === 'admin' || user?.role === 'operator';
   const [readings, setReadings] = useState([]);
   const [sensors, setSensors] = useState([]);
   const [buildings, setBuildings] = useState([]);
@@ -153,13 +158,14 @@ const Dashboard = () => {
   return (
     <>
       <Navbar />
-      <main className="bg-gray-50 dark:bg-gray-900 min-h-screen">
+      <main className="dashboard bg-gray-50 dark:bg-gray-900 min-h-screen">
         <div className="max-w-7xl mx-auto px-4 py-8">
           {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent dark:from-white dark:to-gray-300 mb-2">
+          <div className="dashboard-section mb-8">
+            <h1 className="dashboard-title text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent dark:from-white dark:to-gray-300 mb-2">
               Smart Campus Energy Dashboard
             </h1>
+            <p className="dashboard-subtitle">Live campus power, cost, and sensor health in one view.</p>
             {notice && (
               <div className="mt-3 inline-flex items-center gap-2 bg-emerald-50 text-emerald-800 px-4 py-2 rounded-xl text-sm font-semibold border border-emerald-100">
                 {notice}
@@ -170,12 +176,13 @@ const Dashboard = () => {
               <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
                 {connected ? '🔴 LIVE DATA' : 'Offline Mode'} • {readings.length} readings • Last update: {new Date().toLocaleTimeString()}
               </p>
-              <span className="text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-700">
+              <span className="status-pill status-inactive text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-700">
                 Inactive Sensors: {sensorStatus.inactive}
               </span>
             </div>
           </div>
 
+{canOperate ? (
 <div className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-8 rounded-3xl shadow-2xl mb-10 border border-white/10">
   <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
     ➕ Add Energy Reading 
@@ -202,7 +209,10 @@ const Dashboard = () => {
 
     fetch(`${API_URL}/energy`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
       body: JSON.stringify(formData)
     })
     .then(async res => {
@@ -300,8 +310,13 @@ const Dashboard = () => {
     </button>
   </form>
 </div>
+): (
+  <div className="mb-10 rounded-2xl border border-blue-200 bg-blue-50 text-blue-800 px-5 py-4 text-sm font-semibold">
+    View-only mode: only operator/admin can add records. Delete is admin-only.
+  </div>
+)}
           {/* Key Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+          <div className="dashboard-grid metrics grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
             <StatCard
               title="Total Energy"
               value={stats?.totalEnergy?.toFixed(1) || 0}
@@ -336,9 +351,9 @@ const Dashboard = () => {
           </div>
 
           {/* Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+          <div className="dashboard-grid charts grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
             {/* 24h Energy Trend */}
-            <div className="lg:col-span-2 bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
+            <div className="dashboard-card pad energy lg:col-span-2 bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
                 📈 24-Hour Energy Trend
               </h2>
@@ -375,7 +390,7 @@ const Dashboard = () => {
             </div>
 
             {/* Peak Usage Gauge */}
-            <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
+            <div className="dashboard-card pad cost bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
                 ⚠️ Peak Usage
               </h2>
@@ -411,9 +426,9 @@ const Dashboard = () => {
           </div>
 
           {/* Building Distribution & Sensor Status */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="dashboard-grid split grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Building-wise Energy */}
-            <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
+            <div className="dashboard-card pad energy bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
                 🏢 Energy by Building
               </h2>
@@ -441,7 +456,7 @@ const Dashboard = () => {
             </div>
 
             {/* Sensor Status Distribution */}
-            <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
+            <div className="dashboard-card pad health bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
                 📡 Sensor Status
               </h2>
@@ -539,7 +554,7 @@ const Dashboard = () => {
     </div>
   </div>
   
-  <div className="col-span-2 bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
+  <div className="dashboard-card pad col-span-2 bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
     <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
       📊 Recent Activity
       <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span>
@@ -562,7 +577,7 @@ const Dashboard = () => {
             </p>
             <div className="flex items-center justify-end gap-3 mt-1">
               <p className="text-green-600 font-semibold">Rs {reading.cost}</p>
-              <button
+              {isAdmin && <button
                 onClick={() => {
                   const mongoId = reading._id || (typeof reading.id === 'string' && reading.id.length === 24 ? reading.id : null);
                   if (!mongoId) {
@@ -570,7 +585,10 @@ const Dashboard = () => {
                     setTimeout(() => setNotice(''), 3000);
                     return;
                   }
-                  fetch(`${API_URL}/energy/${mongoId}`, { method: 'DELETE' })
+                  fetch(`${API_URL}/energy/${mongoId}`, {
+                    method: 'DELETE',
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                  })
                     .then(async res => {
                       const data = await res.json().catch(() => ({}));
                       if (!res.ok) throw new Error(data.message || `Delete failed (${res.status})`);
@@ -586,7 +604,7 @@ const Dashboard = () => {
                 className="text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
               >
                 Delete
-              </button>
+              </button>}
             </div>
           </div>
         </div>

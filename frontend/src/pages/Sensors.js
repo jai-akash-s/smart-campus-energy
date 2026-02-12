@@ -7,8 +7,11 @@ import {
 import Navbar from '../components/Navbar';
 import { LoadingSkeleton } from '../components/Utils';
 import { useSensors } from '../hooks/useApi';
+import { useAuth } from '../context/AuthContext';
 
 const Sensors = () => {
+  const { user } = useAuth();
+  const canOperate = user?.role === 'admin' || user?.role === 'operator';
   const { sensors, loading, error, updateSensor } = useSensors();
   const [connected, setConnected] = useState(false);
   const [filterType, setFilterType] = useState('all');
@@ -241,7 +244,7 @@ const Sensors = () => {
                   
                   {/* WORKING BUTTONS - FULL FUNCTIONALITY */}
                   <div className="flex gap-3">
-                    <button 
+                    {canOperate && <button 
                       onClick={async () => {
                         const nextStatus = sensor.status === 'active' ? 'inactive' : 'active';
                         try {
@@ -258,7 +261,7 @@ const Sensors = () => {
                       }`}
                     >
                       {sensor.status === 'active' ? 'Turn OFF' : 'Turn ON'}
-                    </button>
+                    </button>}
                     
                     <button 
                       onClick={() => {
@@ -272,6 +275,11 @@ const Sensors = () => {
                       Details
                     </button>
                   </div>
+                  {!canOperate && (
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-3 font-semibold">
+                      View-only mode. Operator/Admin can change sensor status.
+                    </p>
+                  )}
                   
                   {/* Timestamp */}
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-4 text-right font-medium">
