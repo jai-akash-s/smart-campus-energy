@@ -8,7 +8,6 @@ import StatCard from '../components/StatCard';
 import { LoadingSkeleton } from '../components/Utils';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
-import './Dashboard.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -158,14 +157,13 @@ const Dashboard = () => {
   return (
     <>
       <Navbar />
-      <main className="dashboard bg-gray-50 dark:bg-gray-900 min-h-screen">
+      <main className="bg-gray-50 dark:bg-gray-900 min-h-screen">
         <div className="max-w-7xl mx-auto px-4 py-8">
           {/* Header */}
-          <div className="dashboard-section mb-8">
-            <h1 className="dashboard-title text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent dark:from-white dark:to-gray-300 mb-2">
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent dark:from-white dark:to-gray-300 mb-2">
               Smart Campus Energy Dashboard
             </h1>
-            <p className="dashboard-subtitle">Live campus power, cost, and sensor health in one view.</p>
             {notice && (
               <div className="mt-3 inline-flex items-center gap-2 bg-emerald-50 text-emerald-800 px-4 py-2 rounded-xl text-sm font-semibold border border-emerald-100">
                 {notice}
@@ -176,7 +174,7 @@ const Dashboard = () => {
               <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
                 {connected ? '🔴 LIVE DATA' : 'Offline Mode'} • {readings.length} readings • Last update: {new Date().toLocaleTimeString()}
               </p>
-              <span className="status-pill status-inactive text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-700">
+              <span className="text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-700">
                 Inactive Sensors: {sensorStatus.inactive}
               </span>
             </div>
@@ -316,7 +314,7 @@ const Dashboard = () => {
   </div>
 )}
           {/* Key Metrics */}
-          <div className="dashboard-grid metrics grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
             <StatCard
               title="Total Energy"
               value={stats?.totalEnergy?.toFixed(1) || 0}
@@ -351,9 +349,9 @@ const Dashboard = () => {
           </div>
 
           {/* Charts Row */}
-          <div className="dashboard-grid charts grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
             {/* 24h Energy Trend */}
-            <div className="dashboard-card pad energy lg:col-span-2 bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
+            <div className="lg:col-span-2 bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
                 📈 24-Hour Energy Trend
               </h2>
@@ -390,7 +388,7 @@ const Dashboard = () => {
             </div>
 
             {/* Peak Usage Gauge */}
-            <div className="dashboard-card pad cost bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
+            <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
                 ⚠️ Peak Usage
               </h2>
@@ -426,9 +424,9 @@ const Dashboard = () => {
           </div>
 
           {/* Building Distribution & Sensor Status */}
-          <div className="dashboard-grid split grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Building-wise Energy */}
-            <div className="dashboard-card pad energy bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
+            <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
                 🏢 Energy by Building
               </h2>
@@ -456,7 +454,7 @@ const Dashboard = () => {
             </div>
 
             {/* Sensor Status Distribution */}
-            <div className="dashboard-card pad health bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
+            <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
                 📡 Sensor Status
               </h2>
@@ -554,7 +552,7 @@ const Dashboard = () => {
     </div>
   </div>
   
-  <div className="dashboard-card pad col-span-2 bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
+  <div className="col-span-2 bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 border border-gray-100 dark:border-gray-700">
     <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
       📊 Recent Activity
       <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span>
