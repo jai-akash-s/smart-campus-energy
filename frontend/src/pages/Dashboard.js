@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell,
@@ -10,6 +10,8 @@ import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const SENSOR_TARGET = 12;
+const DEFAULT_COST_PER_KWH = 15;
 
 const Dashboard = () => {
   const { user, token } = useAuth();
@@ -60,7 +62,11 @@ const Dashboard = () => {
                 sensorId: s.sensorId || s.sensor_id || (s._id ? `SENSOR-${s._id.slice(-4)}` : `SENSOR-${i + 1}`),
                 name: s.name || `Sensor ${s.sensorId || s.sensor_id || i + 1}`,
                 buildingName: s.buildingName || s.building?.name || 'Unknown',
-                status: s.status || 'inactive'
+                status: s.status || 'inactive',
+                power: Number(s.power || 0),
+                voltage: Number(s.voltage || 0),
+                current: Number(s.current || 0),
+                temp: Number(s.temp || s.temperature || 0)
               }))
             : [];
           setSensors(normalized);
@@ -104,17 +110,15 @@ const Dashboard = () => {
 
   // Calculate stats
   useEffect(() => {
-    if (readings.length > 0) {
-      const totalEnergy = readings.reduce((sum, r) => sum + (Number(r.energy_kwh) || 0), 0);
-      const totalCost = readings.reduce((sum, r) => sum + (Number(r.cost) || 0), 0);
-      const avgPower = totalEnergy / readings.length;
+    const totalEnergy = readings.reduce((sum, r) => sum + (Number(r.energy_kwh) || 0), 0);
+    const totalCost = readings.reduce((sum, r) => sum + (Number(r.cost) || 0), 0);
+    const avgPower = readings.length ? totalEnergy / readings.length : 0;
 
-      setStats({
-        totalEnergy: parseFloat(totalEnergy.toFixed(2)),
-        totalCost: parseFloat(totalCost.toFixed(2)),
-        avgPower: parseFloat(avgPower.toFixed(2))
-      });
-    }
+    setStats({
+      totalEnergy: parseFloat(totalEnergy.toFixed(2)),
+      totalCost: parseFloat(totalCost.toFixed(2)),
+      avgPower: parseFloat(avgPower.toFixed(2))
+    });
   }, [readings]);
 
   // Data processing
@@ -130,7 +134,7 @@ const Dashboard = () => {
     return {
       name: b.name,
       energy: parseFloat(total.toFixed(2)),
-      cost: parseFloat((total * 15).toFixed(2))
+      cost: parseFloat((total * DEFAULT_COST_PER_KWH).toFixed(2))
     };
   });
 
@@ -139,6 +143,21 @@ const Dashboard = () => {
     warning: sensors.filter(s => s.status === 'warning').length,
     inactive: sensors.filter(s => s.status === 'inactive').length
   };
+
+  const analyticsSummary = useMemo(() => {
+    const sensorCount = sensors.length;
+    const sensorCoverage = SENSOR_TARGET ? Math.min((sensorCount / SENSOR_TARGET) * 100, 100) : 0;
+    const activeRate = sensorCount ? (sensorStatus.active / sensorCount) * 100 : 0;
+    const avgCostPerKwh = stats?.totalEnergy > 0 ? stats.totalCost / stats.totalEnergy : 0;
+    const sortedBuildings = [...buildingData].sort((a, b) => (b.energy || 0) - (a.energy || 0));
+    const peakBuilding = sortedBuildings[0]?.name || '-';
+    return {
+      sensorCoverage,
+      activeRate,
+      avgCostPerKwh,
+      peakBuilding
+    };
+  }, [sensors.length, sensorStatus.active, stats, buildingData]);
 
   const peakUsagePercent = stats ? Math.min((stats.totalEnergy / 500) * 100, 100) : 0;
   const COLORS = ['#10b981', '#f59e0b', '#ef4444'];
@@ -172,10 +191,10 @@ const Dashboard = () => {
             <div className="flex items-center gap-3">
               <span className={`inline-block w-3 h-3 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
               <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                {connected ? '🔴 LIVE DATA' : 'Offline Mode'} • {readings.length} readings • Last update: {new Date().toLocaleTimeString()}
+                {connected ? 'Live data' : 'Offline mode'} - {sensors.length}/{SENSOR_TARGET} sensors - {readings.length} readings - Last update: {new Date().toLocaleTimeString()}
               </p>
               <span className="text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-700">
-                Inactive Sensors: {sensorStatus.inactive}
+                Active {sensorStatus.active} | Warning {sensorStatus.warning} | Inactive {sensorStatus.inactive}
               </span>
             </div>
           </div>
@@ -193,7 +212,7 @@ const Dashboard = () => {
     const energyValue = parseFloat(e.target.energy_kwh.value);
     const costValueRaw = e.target.cost.value;
     const costValue = costValueRaw === '' || costValueRaw === null
-      ? Number((energyValue * 15).toFixed(2))
+      ? Number((energyValue * DEFAULT_COST_PER_KWH).toFixed(2))
       : parseFloat(costValueRaw) || 0;
 
     const formData = {
@@ -321,15 +340,13 @@ const Dashboard = () => {
               unit="kWh"
               color="blue"
               icon="⚡"
-              trend={{ direction: 'down', value: 12 }}
             />
             <StatCard
-              title="Today's Cost"
-              value={`₹${stats?.totalCost?.toFixed(0) || 0}`}
+              title="Avg Cost / kWh"
+              value={`Rs ${analyticsSummary.avgCostPerKwh.toFixed(2)}`}
               unit=""
               color="green"
-              icon="💰"
-              trend={{ direction: 'up', value: 8 }}
+              icon="₹"
             />
             <StatCard
               title="Avg Power"
@@ -337,7 +354,6 @@ const Dashboard = () => {
               unit="kW"
               color="yellow"
               icon="📊"
-              trend={{ direction: 'down', value: 3 }}
             />
             <StatCard
               title="Active Sensors"
@@ -417,7 +433,7 @@ const Dashboard = () => {
                   </div>
                 </div>
                 <p className="text-center text-lg font-semibold text-gray-700 dark:text-gray-300 mt-6">
-                  ₹{(stats?.totalCost / readings.length || 0).toFixed(1)}/reading
+                  Peak building: {analyticsSummary.peakBuilding}
                 </p>
               </div>
             </div>
@@ -521,12 +537,11 @@ const Dashboard = () => {
       
       <button 
         onClick={() => {
-          setConnected(prev => !prev);
-          alert('📱 Mobile alerts toggled!\n\nStatus: ' + (!connected ? 'ON' : 'OFF'));
+          window.location.href = '/analytics';
         }}
         className="w-full bg-white/20 backdrop-blur-sm p-4 rounded-xl hover:bg-white/30 hover:shadow-xl transform transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] flex items-center gap-3 font-semibold"
       >
-        📱 Mobile Alerts
+        📈 Open Analytics
       </button>
       
       <button 
