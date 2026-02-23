@@ -1,12 +1,18 @@
 {
   "short_name": "Smart Campus",
-  "name": "Smart Campus Energy Monitor",
-  "description": "Real-time smart campus energy monitoring system",
+  "name": "Smart Campus Energy Analytics",
+  "description": "Campus energy monitoring with forecast and weather-aware analytics",
   "icons": [
     {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+      "src": "logo192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "logo512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   "start_url": "/",
@@ -15,11 +21,16 @@
   "theme_color": "#10B981",
   "background_color": "#ffffff",
   "categories": ["productivity", "utilities"],
-  "screenshots": [
+  "shortcuts": [
     {
-      "src": "/screenshot.png",
-      "sizes": "540x720",
-      "type": "image/png"
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/dashboard"
+    },
+    {
+      "name": "Analytics",
+      "short_name": "Analytics",
+      "url": "/analytics"
     }
   ]
 }

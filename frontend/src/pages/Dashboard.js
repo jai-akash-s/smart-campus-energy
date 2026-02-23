@@ -7,6 +7,7 @@ import {
 import StatCard from '../components/StatCard';
 import { LoadingSkeleton } from '../components/Utils';
 import Navbar from '../components/Navbar';
+import SidebarNav from '../components/SidebarNav';
 import { useAuth } from '../context/AuthContext';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -166,7 +167,8 @@ const Dashboard = () => {
     return (
       <>
         <Navbar />
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        <SidebarNav />
+        <div className="max-w-7xl mx-auto px-4 py-8 md:ml-56">
           <LoadingSkeleton count={6} />
         </div>
       </>
@@ -176,7 +178,8 @@ const Dashboard = () => {
   return (
     <>
       <Navbar />
-      <main className="bg-gray-50 dark:bg-gray-900 min-h-screen">
+      <SidebarNav />
+      <main className="bg-gray-50 dark:bg-gray-900 min-h-screen md:ml-56">
         <div className="max-w-7xl mx-auto px-4 py-8">
           {/* Header */}
           <div className="mb-8">

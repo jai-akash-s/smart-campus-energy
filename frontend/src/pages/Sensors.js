@@ -12,6 +12,7 @@ import {
   Cell
 } from 'recharts';
 import Navbar from '../components/Navbar';
+import SidebarNav from '../components/SidebarNav';
 import { LoadingSkeleton } from '../components/Utils';
 import { useSensors } from '../hooks/useApi';
 import { useAuth } from '../context/AuthContext';
@@ -203,7 +204,8 @@ const Sensors = () => {
     return (
       <>
         <Navbar />
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        <SidebarNav />
+        <div className="max-w-7xl mx-auto px-4 py-8 md:ml-56">
           <LoadingSkeleton count={8} />
         </div>
       </>
@@ -213,7 +215,8 @@ const Sensors = () => {
   return (
     <>
       <Navbar />
-      <main className="bg-gray-50 dark:bg-gray-900 min-h-screen">
+      <SidebarNav />
+      <main className="bg-gray-50 dark:bg-gray-900 min-h-screen md:ml-56">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="mb-8">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent dark:from-white dark:to-gray-300 mb-2">

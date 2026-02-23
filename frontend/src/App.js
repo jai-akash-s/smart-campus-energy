@@ -12,6 +12,9 @@ import Dashboard from './pages/Dashboard';
 import Sensors from './pages/Sensors';
 import Analytics from './pages/Analytics';
 import Admin from './pages/Admin';
+import Buildings from './pages/Buildings';
+import Alerts from './pages/Alerts';
+import Settings from './pages/Settings';
 
 function App() {
   const ADMIN_EMAIL = 'akash.saravanan1797@gmail.com';
@@ -48,6 +51,30 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Analytics />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/buildings"
+              element={
+                <ProtectedRoute>
+                  <Buildings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/alerts"
+              element={
+                <ProtectedRoute>
+                  <Alerts />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
                 </ProtectedRoute>
               }
             />

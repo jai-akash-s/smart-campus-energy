@@ -1,168 +1,86 @@
 import React, { useState } from 'react';
-import './Settings.css';
+import Navbar from '../components/Navbar';
+import SidebarNav from '../components/SidebarNav';
 
 function Settings() {
   const [settings, setSettings] = useState({
     alertThreshold: 80,
-    peakHours: '18:00-22:00',
-    autoOptimize: true,
     notifications: true,
-    reports: 'monthly',
+    reportFrequency: 'monthly',
+    email: 'admin@campus.edu'
   });
+  const [notice, setNotice] = useState('');
 
-  const handleChange = (key, value) => {
-    setSettings({ ...settings, [key]: value });
-  };
-
-  const handleSave = () => {
-    console.log('Settings saved:', settings);
-    alert('Settings saved successfully!');
-  };
+  const update = (key, value) => setSettings((prev) => ({ ...prev, [key]: value }));
 
   return (
-    <div className="settings-page">
-      <h2 className="page-title">Settings & Configuration</h2>
+    <>
+      <Navbar />
+      <SidebarNav />
+      <main className="bg-gray-50 dark:bg-gray-900 min-h-screen p-4 md:p-8 md:ml-56">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">Settings</h1>
+          {notice && <div className="mb-4 rounded-lg bg-emerald-100 text-emerald-800 px-4 py-2 text-sm">{notice}</div>}
 
-      {/* System Settings */}
-      <div className="card">
-        <div className="card-header">System Settings</div>
-        <div className="card-body">
-          <div className="settings-group">
-            <label className="setting-label">Alert Threshold (%)</label>
-            <div className="setting-input-group">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 space-y-5">
+            <div>
+              <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Alert Threshold (%)</label>
               <input
                 type="range"
                 min="0"
                 max="100"
                 value={settings.alertThreshold}
-                onChange={(e) => handleChange('alertThreshold', e.target.value)}
-                className="slider"
+                onChange={(e) => update('alertThreshold', Number(e.target.value))}
+                className="w-full"
               />
-              <span className="slider-value">{settings.alertThreshold}%</span>
+              <p className="text-xs text-gray-500 mt-1">{settings.alertThreshold}%</p>
             </div>
-            <p className="setting-description">Set the alert threshold for energy consumption alerts</p>
-          </div>
 
-          <div className="settings-group">
-            <label className="setting-label">Peak Hours</label>
-            <input
-              type="text"
-              value={settings.peakHours}
-              onChange={(e) => handleChange('peakHours', e.target.value)}
-              className="setting-input"
-              placeholder="e.g., 18:00-22:00"
-            />
-            <p className="setting-description">Define peak hours for cost calculation</p>
-          </div>
-
-          <div className="settings-group">
-            <label className="setting-label">
+            <div>
+              <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Notification Email</label>
               <input
-                type="checkbox"
-                checked={settings.autoOptimize}
-                onChange={(e) => handleChange('autoOptimize', e.target.checked)}
-                className="checkbox"
+                type="email"
+                value={settings.email}
+                onChange={(e) => update('email', e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
-              Auto Optimize
-            </label>
-            <p className="setting-description">Automatically optimize energy usage during peak hours</p>
-          </div>
+            </div>
 
-          <div className="settings-group">
-            <label className="setting-label">
+            <div>
+              <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Report Frequency</label>
+              <select
+                value={settings.reportFrequency}
+                onChange={(e) => update('reportFrequency', e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+              </select>
+            </div>
+
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
               <input
                 type="checkbox"
                 checked={settings.notifications}
-                onChange={(e) => handleChange('notifications', e.target.checked)}
-                className="checkbox"
+                onChange={(e) => update('notifications', e.target.checked)}
               />
-              Enable Notifications
+              Enable in-app notifications
             </label>
-            <p className="setting-description">Receive alerts and notifications</p>
-          </div>
 
-          <div className="settings-group">
-            <label className="setting-label">Report Frequency</label>
-            <select
-              value={settings.reports}
-              onChange={(e) => handleChange('reports', e.target.value)}
-              className="setting-select"
+            <button
+              onClick={() => {
+                setNotice('Settings saved.');
+                setTimeout(() => setNotice(''), 2500);
+              }}
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold"
             >
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option>
-              <option value="yearly">Yearly</option>
-            </select>
-            <p className="setting-description">Select how often you want to receive reports</p>
+              Save Settings
+            </button>
           </div>
         </div>
-      </div>
-
-      {/* User Settings */}
-      <div className="card">
-        <div className="card-header">User Settings</div>
-        <div className="card-body">
-          <div className="settings-group">
-            <label className="setting-label">Email Address</label>
-            <input type="email" defaultValue="admin@campus.edu" className="setting-input" />
-          </div>
-
-          <div className="settings-group">
-            <label className="setting-label">Phone Number</label>
-            <input type="tel" defaultValue="+1 (555) 123-4567" className="setting-input" />
-          </div>
-
-          <div className="settings-group">
-            <label className="setting-label">Language</label>
-            <select className="setting-select">
-              <option>English</option>
-              <option>Spanish</option>
-              <option>French</option>
-              <option>German</option>
-            </select>
-          </div>
-
-          <div className="settings-group">
-            <label className="setting-label">Timezone</label>
-            <select className="setting-select">
-              <option>UTC-5 (Eastern)</option>
-              <option>UTC-6 (Central)</option>
-              <option>UTC-7 (Mountain)</option>
-              <option>UTC-8 (Pacific)</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* API Settings */}
-      <div className="card">
-        <div className="card-header">API & Integrations</div>
-        <div className="card-body">
-          <div className="api-info">
-            <p className="api-title">API Key</p>
-            <div className="api-key-display">
-              <span>sk_live_abcdef1234567890</span>
-              <button className="btn-copy">📋 Copy</button>
-            </div>
-          </div>
-
-          <div className="api-info">
-            <p className="api-title">Webhook URL</p>
-            <input type="text" value="https://api.campus.edu/webhook" className="setting-input" readOnly />
-          </div>
-
-          <button className="btn btn-secondary">Regenerate API Key</button>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="settings-actions">
-        <button className="btn btn-primary btn-large" onClick={handleSave}>
-          Save Settings
-        </button>
-        <button className="btn btn-secondary btn-large">Cancel</button>
-      </div>
-    </div>
+      </main>
+    </>
   );
 }
 

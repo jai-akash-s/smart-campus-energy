@@ -118,8 +118,80 @@ export const useEnergyReadings = () => {
   return { readings, stats, loading, error, fetchReadings, fetchStats };
 };
 
+// Hook for forecasted energy consumption
+export const useEnergyForecast = (days = 7, city = 'Chennai,IN', building = null) => {
+  const [forecast, setForecast] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [correlation, setCorrelation] = useState(0);
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchForecast = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({ days: String(days), city });
+      if (building) params.set('building', building);
+      const response = await axios.get(`${API_URL}/energy/forecast?${params.toString()}`);
+      const data = response.data || {};
+      setForecast(Array.isArray(data.forecast) ? data.forecast : []);
+      setHistory(Array.isArray(data.history) ? data.history : []);
+      setCorrelation(Number(data.correlationTempVsForecast || 0));
+      setMessage(data.message || '');
+      setError(null);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
+      setForecast([]);
+      setHistory([]);
+      setCorrelation(0);
+      setMessage('');
+    } finally {
+      setLoading(false);
+    }
+  }, [days, city, building]);
+
+  useEffect(() => {
+    fetchForecast();
+  }, [fetchForecast]);
+
+  return { forecast, history, correlation, message, loading, error, fetchForecast };
+};
+
+// Hook for weather snapshots and forecast
+export const useWeather = (city = 'Chennai,IN', days = 5) => {
+  const [current, setCurrent] = useState(null);
+  const [forecast, setForecast] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchWeather = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [currentRes, forecastRes] = await Promise.all([
+        axios.get(`${API_URL}/weather/current?city=${encodeURIComponent(city)}`),
+        axios.get(`${API_URL}/weather/forecast?city=${encodeURIComponent(city)}&days=${days}`)
+      ]);
+      setCurrent(currentRes.data || null);
+      setForecast(Array.isArray(forecastRes.data?.forecast) ? forecastRes.data.forecast : []);
+      setError(null);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
+      setCurrent(null);
+      setForecast([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [city, days]);
+
+  useEffect(() => {
+    fetchWeather();
+  }, [fetchWeather]);
+
+  return { current, forecast, loading, error, fetchWeather };
+};
+
 // Hook for alerts
-export const useAlerts = () => {
+export const useAlerts = (status = "active") => {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -128,7 +200,9 @@ export const useAlerts = () => {
   const fetchAlerts = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/alerts`);
+      const response = await axios.get(`${API_URL}/alerts`, {
+        params: status ? { status } : undefined
+      });
       setAlerts(response.data);
       setError(null);
     } catch (err) {
@@ -137,7 +211,7 @@ export const useAlerts = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [status]);
 
   const resolveAlert = useCallback(async (alertId) => {
     try {
@@ -153,13 +227,43 @@ export const useAlerts = () => {
     }
   }, [alerts, token]);
 
+  const acknowledgeAlert = useCallback(async (alertId) => {
+    try {
+      const response = await axios.put(
+        `${API_URL}/alerts/${alertId}`,
+        { acknowledged: true, acknowledgedAt: new Date().toISOString() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setAlerts(alerts.map(a => a._id === alertId ? response.data : a));
+      return response.data;
+    } catch (err) {
+      console.error('Error acknowledging alert:', err);
+      throw err;
+    }
+  }, [alerts, token]);
+
+  const resolveAllAlerts = useCallback(async () => {
+    try {
+      const response = await axios.post(
+        `${API_URL}/alerts/resolve-all`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setAlerts([]);
+      return response.data;
+    } catch (err) {
+      console.error('Error resolving all alerts:', err);
+      throw err;
+    }
+  }, [token]);
+
   useEffect(() => {
     fetchAlerts();
     const interval = setInterval(fetchAlerts, 5000);
     return () => clearInterval(interval);
   }, [fetchAlerts]);
 
-  return { alerts, loading, error, fetchAlerts, resolveAlert };
+  return { alerts, loading, error, fetchAlerts, resolveAlert, acknowledgeAlert, resolveAllAlerts };
 };
 
 // Hook for buildings

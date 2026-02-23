@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSensors, useBuildings, useEnergyReadings, useUsers } from '../hooks/useApi';
 import Navbar from '../components/Navbar';
+import SidebarNav from '../components/SidebarNav';
 
 const Admin = () => {
   const ADMIN_EMAIL = 'akash.saravanan1797@gmail.com';
@@ -60,7 +61,8 @@ const Admin = () => {
     return (
       <>
         <Navbar />
-        <main className="bg-gray-50 dark:bg-gray-900 min-h-screen flex items-center justify-center">
+        <SidebarNav />
+        <main className="bg-gray-50 dark:bg-gray-900 min-h-screen md:ml-56 flex items-center justify-center">
           <div className="text-center">
             <div className="text-red-500 text-4xl mb-4">🔐</div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Access Denied</h1>
@@ -74,7 +76,8 @@ const Admin = () => {
   return (
     <>
       <Navbar />
-      <main className="bg-gray-50 dark:bg-gray-900 min-h-screen p-4">
+      <SidebarNav />
+      <main className="bg-gray-50 dark:bg-gray-900 min-h-screen p-4 md:ml-56">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
