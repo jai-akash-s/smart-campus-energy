@@ -8,6 +8,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 let nodemailer = null;
 let OAuth2Client = null;
+let rateLimit = null;
 try {
   ({ OAuth2Client } = require("google-auth-library"));
 } catch (error) {
@@ -18,14 +19,17 @@ try {
 } catch (error) {
   nodemailer = null;
 }
+try {
+  rateLimit = require("express-rate-limit");
+} catch (error) {
+  rateLimit = null;
+}
 
 dotenv.config();
 const ADMIN_EMAIL = "akash.saravanan1797@gmail.com";
 const ADMIN_NAME = "Akash";
 const JWT_SECRET = process.env.JWT_SECRET || "your-super-secret-key-2026";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
-const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY || "";
-const CAMPUS_CITY = process.env.CAMPUS_CITY || "Chennai,IN";
 const EMAIL_HOST = process.env.EMAIL_HOST || "";
 const EMAIL_PORT = parseInt(process.env.EMAIL_PORT || "587");
 const EMAIL_SECURE = String(process.env.EMAIL_SECURE || "false").toLowerCase() === "true";
@@ -33,6 +37,11 @@ const EMAIL_USER = process.env.EMAIL_USER || "";
 const EMAIL_PASS = process.env.EMAIL_PASS || "";
 const ALERT_TO_EMAIL = process.env.ALERT_TO_EMAIL || EMAIL_USER || "";
 const FIXED_ALERT_THRESHOLD = Number(process.env.FIXED_ALERT_THRESHOLD || 50);
+const ALERT_DEDUP_COOLDOWN_SECONDS = Number(process.env.ALERT_DEDUP_COOLDOWN_SECONDS || 180);
+const AUTH_RATE_LIMIT_WINDOW_MS = Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
+const AUTH_RATE_LIMIT_MAX = Number(process.env.AUTH_RATE_LIMIT_MAX || 60);
+const WRITE_RATE_LIMIT_WINDOW_MS = Number(process.env.WRITE_RATE_LIMIT_WINDOW_MS || 60 * 1000);
+const WRITE_RATE_LIMIT_MAX = Number(process.env.WRITE_RATE_LIMIT_MAX || 120);
 const googleClient = GOOGLE_CLIENT_ID && OAuth2Client ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
 const app = express();
@@ -47,21 +56,29 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-
-const pearsonCorrelation = (xs, ys) => {
-  if (!Array.isArray(xs) || !Array.isArray(ys) || xs.length !== ys.length || xs.length < 2) return 0;
-  const n = xs.length;
-  const sumX = xs.reduce((acc, v) => acc + v, 0);
-  const sumY = ys.reduce((acc, v) => acc + v, 0);
-  const sumXY = xs.reduce((acc, v, i) => acc + v * ys[i], 0);
-  const sumX2 = xs.reduce((acc, v) => acc + v * v, 0);
-  const sumY2 = ys.reduce((acc, v) => acc + v * v, 0);
-  const numerator = n * sumXY - sumX * sumY;
-  const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
-  if (!denominator) return 0;
-  return numerator / denominator;
+const passthroughLimiter = (req, res, next) => next();
+const createLimiter = (options) => {
+  if (!rateLimit) return passthroughLimiter;
+  return rateLimit(options);
 };
+
+const authRateLimiter = createLimiter({
+  windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
+  max: AUTH_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many auth attempts. Please try again later." }
+});
+
+const writeRateLimiter = createLimiter({
+  windowMs: WRITE_RATE_LIMIT_WINDOW_MS,
+  max: WRITE_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many write requests. Please slow down." }
+});
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const buildProphetStyleForecast = (dailySeries, days) => {
   if (!dailySeries.length || days <= 0) return [];
@@ -115,30 +132,6 @@ const buildProphetStyleForecast = (dailySeries, days) => {
     });
   }
   return forecast;
-};
-
-const getDailyWeatherForecast = async (city) => {
-  if (!OPENWEATHER_API_KEY) return [];
-  const url = `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(city)}&units=metric&appid=${OPENWEATHER_API_KEY}`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Weather forecast request failed (${response.status})`);
-  const data = await response.json();
-  const grouped = new Map();
-  (data.list || []).forEach((entry) => {
-    const date = new Date(entry.dt * 1000).toISOString().slice(0, 10);
-    const item = grouped.get(date) || { temps: [], humidity: [], weather: entry.weather?.[0]?.main || "Unknown" };
-    item.temps.push(Number(entry.main?.temp || 0));
-    item.humidity.push(Number(entry.main?.humidity || 0));
-    grouped.set(date, item);
-  });
-  return Array.from(grouped.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, item]) => ({
-      date,
-      avgTempC: Number((item.temps.reduce((acc, v) => acc + v, 0) / Math.max(item.temps.length, 1)).toFixed(2)),
-      avgHumidity: Number((item.humidity.reduce((acc, v) => acc + v, 0) / Math.max(item.humidity.length, 1)).toFixed(2)),
-      weather: item.weather
-    }));
 };
 
 const mailTransporter = nodemailer && EMAIL_HOST && EMAIL_USER && EMAIL_PASS
@@ -267,6 +260,7 @@ const alertSchema = new mongoose.Schema({
 
 alertSchema.index({ status: 1, createdAt: -1 });
 alertSchema.index({ building: 1 });
+alertSchema.index({ sensor: 1, type: 1, createdAt: -1 });
 
 const Alert = mongoose.model("Alert", alertSchema);
 
@@ -282,6 +276,17 @@ const evaluateSensorAlerts = async (sensor, source = "sensor_update") => {
   if (isOverThreshold) {
     const existing = await Alert.findOne(activeQuery);
     if (existing) return;
+
+    const cooldownMs = Math.max(ALERT_DEDUP_COOLDOWN_SECONDS, 0) * 1000;
+    if (cooldownMs > 0) {
+      const recentCutoff = new Date(Date.now() - cooldownMs);
+      const recent = await Alert.findOne({
+        type: "threshold",
+        sensor: sensor._id,
+        createdAt: { $gte: recentCutoff }
+      }).sort({ createdAt: -1 });
+      if (recent) return;
+    }
 
     const overloadRatio = power / threshold;
     const severity = overloadRatio > 1.25 ? "high" : overloadRatio > 1.1 ? "medium" : "low";
@@ -326,9 +331,8 @@ const authMiddleware = (req, res, next) => {
 };
 
 const adminOnly = (req, res, next) => {
-  const userEmail = String(req.user?.email || "").toLowerCase();
-  if (req.user?.role !== "admin" || userEmail !== ADMIN_EMAIL) {
-    return res.status(403).json({ message: "Only Akash admin account can manage this system" });
+  if (req.user?.role !== "admin") {
+    return res.status(403).json({ message: "Admin access required" });
   }
   next();
 };
@@ -346,7 +350,7 @@ const operatorOrAdmin = (req, res, next) => {
 };
 
 // ==================== AUTH ROUTES ====================
-app.post("/api/auth/register", async (req, res) => {
+app.post("/api/auth/register", authRateLimiter, async (req, res) => {
   try {
     const { name, email, password } = req.body;
     if (!name || !email || !password) {
@@ -374,7 +378,7 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", authRateLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
     const normalizedEmail = String(email).toLowerCase();
@@ -424,7 +428,7 @@ app.get("/api/users", authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-app.put("/api/users/:id/role", authMiddleware, adminOnly, async (req, res) => {
+app.put("/api/users/:id/role", authMiddleware, adminOnly, writeRateLimiter, async (req, res) => {
   try {
     const { role } = req.body || {};
     const validRoles = ["admin", "operator", "viewer"];
@@ -454,7 +458,7 @@ app.put("/api/users/:id/role", authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-app.delete("/api/users/:id", authMiddleware, adminOnly, async (req, res) => {
+app.delete("/api/users/:id", authMiddleware, adminOnly, writeRateLimiter, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -484,7 +488,7 @@ app.get("/api/buildings", async (req, res) => {
   }
 });
 
-app.post("/api/buildings", authMiddleware, adminOnly, async (req, res) => {
+app.post("/api/buildings", authMiddleware, adminOnly, writeRateLimiter, async (req, res) => {
   try {
     const building = new Building(req.body);
     await building.save();
@@ -504,7 +508,7 @@ app.get("/api/sensors", async (req, res) => {
   }
 });
 
-app.post("/api/sensors", authMiddleware, adminOnly, async (req, res) => {
+app.post("/api/sensors", authMiddleware, adminOnly, writeRateLimiter, async (req, res) => {
   try {
     const sensor = new Sensor(req.body);
     await sensor.save();
@@ -515,7 +519,7 @@ app.post("/api/sensors", authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-app.put("/api/sensors/:id", authMiddleware, operatorOrAdmin, async (req, res) => {
+app.put("/api/sensors/:id", authMiddleware, operatorOrAdmin, writeRateLimiter, async (req, res) => {
   try {
     const sensor = await Sensor.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (sensor) {
@@ -547,7 +551,7 @@ app.get("/api/energy", async (req, res) => {
   }
 });
 
-app.post("/api/energy", authMiddleware, operatorOrAdmin, async (req, res) => {
+app.post("/api/energy", authMiddleware, operatorOrAdmin, writeRateLimiter, async (req, res) => {
   try {
     if (!req.body.buildingName || req.body.energy_kwh === undefined) {
       return res.status(400).json({ message: "buildingName and energy_kwh required" });
@@ -561,7 +565,7 @@ app.post("/api/energy", authMiddleware, operatorOrAdmin, async (req, res) => {
   }
 });
 
-app.post("/api/auth/google", async (req, res) => {
+app.post("/api/auth/google", authRateLimiter, async (req, res) => {
   try {
     if (!googleClient) {
       return res.status(500).json({ message: "Google auth is not configured on server" });
@@ -614,7 +618,7 @@ app.post("/api/auth/google", async (req, res) => {
   }
 });
 
-app.delete("/api/energy/:id", authMiddleware, adminOnly, async (req, res) => {
+app.delete("/api/energy/:id", authMiddleware, adminOnly, writeRateLimiter, async (req, res) => {
   try {
     const deleted = await EnergyReading.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ message: "Reading not found" });
@@ -665,7 +669,6 @@ app.get("/api/energy/forecast", async (req, res) => {
     const days = clamp(parseInt(req.query.days) || 7, 1, 14);
     const lookbackDays = clamp(parseInt(req.query.lookbackDays) || 60, 14, 180);
     const building = req.query.building ? String(req.query.building) : null;
-    const city = String(req.query.city || CAMPUS_CITY);
     const cutoff = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
 
     const filter = { timestamp: { $gte: cutoff } };
@@ -692,94 +695,16 @@ app.get("/api/energy/forecast", async (req, res) => {
       });
     }
 
-    let forecast = buildProphetStyleForecast(dailySeries, days);
-    let weather = [];
-    try {
-      weather = await getDailyWeatherForecast(city);
-      const baselineTemp = weather.length
-        ? weather.reduce((acc, item) => acc + item.avgTempC, 0) / weather.length
-        : 26;
-      forecast = forecast.map((point) => {
-        const w = weather.find((item) => item.date === point.date);
-        if (!w) return point;
-        const tempDelta = w.avgTempC - baselineTemp;
-        const weatherFactor = clamp(1 + tempDelta * 0.015, 0.8, 1.25);
-        const predicted = point.predicted_kwh * weatherFactor;
-        const spread = Math.max((point.upper_kwh - point.lower_kwh) / 2, predicted * 0.08);
-        return {
-          ...point,
-          weatherTempC: w.avgTempC,
-          weatherHumidity: w.avgHumidity,
-          predicted_kwh: Number(predicted.toFixed(2)),
-          lower_kwh: Number(Math.max(predicted - spread, 0).toFixed(2)),
-          upper_kwh: Number((predicted + spread).toFixed(2))
-        };
-      });
-    } catch (weatherError) {
-      weather = [];
-    }
-
-    const aligned = forecast.filter((f) => typeof f.weatherTempC === "number");
-    const correlation = aligned.length > 1
-      ? pearsonCorrelation(
-          aligned.map((f) => Number(f.weatherTempC)),
-          aligned.map((f) => Number(f.predicted_kwh))
-        )
-      : 0;
+    const forecast = buildProphetStyleForecast(dailySeries, days);
 
     res.json({
       model: "prophet-style",
       building: building || "all",
-      city,
       lookbackDays,
       forecastDays: days,
-      correlationTempVsForecast: Number(correlation.toFixed(3)),
+      correlationTempVsForecast: 0,
       history: dailySeries.slice(-30),
       forecast
-    });
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-});
-
-app.get("/api/weather/current", async (req, res) => {
-  try {
-    if (!OPENWEATHER_API_KEY) {
-      return res.status(503).json({ message: "OPENWEATHER_API_KEY not configured on server" });
-    }
-    const city = String(req.query.city || CAMPUS_CITY);
-    const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&units=metric&appid=${OPENWEATHER_API_KEY}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-      return res.status(response.status).json({ message: payload.message || "Unable to fetch weather" });
-    }
-    const weather = await response.json();
-    res.json({
-      city: weather.name,
-      country: weather.sys?.country,
-      timestamp: new Date((weather.dt || 0) * 1000).toISOString(),
-      tempC: Number(weather.main?.temp || 0),
-      feelsLikeC: Number(weather.main?.feels_like || 0),
-      humidity: Number(weather.main?.humidity || 0),
-      windSpeed: Number(weather.wind?.speed || 0),
-      condition: weather.weather?.[0]?.main || "Unknown",
-      description: weather.weather?.[0]?.description || ""
-    });
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-});
-
-app.get("/api/weather/forecast", async (req, res) => {
-  try {
-    const city = String(req.query.city || CAMPUS_CITY);
-    const days = clamp(parseInt(req.query.days) || 5, 1, 5);
-    const daily = await getDailyWeatherForecast(city);
-    res.json({
-      city,
-      days,
-      forecast: daily.slice(0, days)
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -801,7 +726,7 @@ app.get("/api/alerts", async (req, res) => {
   }
 });
 
-app.post("/api/alerts/resolve-all", authMiddleware, adminOnly, async (req, res) => {
+app.post("/api/alerts/resolve-all", authMiddleware, adminOnly, writeRateLimiter, async (req, res) => {
   try {
     const active = await Alert.find({ status: "active" }).select("_id");
     if (!active.length) {
@@ -815,7 +740,7 @@ app.post("/api/alerts/resolve-all", authMiddleware, adminOnly, async (req, res) 
   }
 });
 
-app.post("/api/alerts", authMiddleware, adminOnly, async (req, res) => {
+app.post("/api/alerts", authMiddleware, adminOnly, writeRateLimiter, async (req, res) => {
   try {
     const alert = new Alert(req.body);
     await alert.save();
@@ -829,7 +754,7 @@ app.post("/api/alerts", authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-app.put("/api/alerts/:id", authMiddleware, operatorOrAdmin, async (req, res) => {
+app.put("/api/alerts/:id", authMiddleware, operatorOrAdmin, writeRateLimiter, async (req, res) => {
   try {
     const alert = await Alert.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (alert) {

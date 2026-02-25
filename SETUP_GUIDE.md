@@ -58,12 +58,22 @@ A production-ready, real-time energy monitoring platform for PSG Institute of Te
 cd backend
 npm install
 
-# Create/update .env file
+# Create/update .env file from template
+copy .env.example .env
+
+# Required minimum keys
 MONGODB_URI=mongodb://localhost:27017/smartcampus
 PORT=5000
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
 FRONTEND_URL=http://localhost:3000
-NODE_ENV=development
+
+# Recommended production keys
+FIXED_ALERT_THRESHOLD=50
+ALERT_DEDUP_COOLDOWN_SECONDS=180
+AUTH_RATE_LIMIT_WINDOW_MS=900000
+AUTH_RATE_LIMIT_MAX=60
+WRITE_RATE_LIMIT_WINDOW_MS=60000
+WRITE_RATE_LIMIT_MAX=120
 ```
 
 **Start the backend:**
@@ -81,7 +91,10 @@ Backend runs on `http://localhost:5000`
 cd frontend
 npm install
 
-# Create/update .env file
+# Create/update .env file from template
+copy .env.example .env
+
+# Frontend env
 REACT_APP_API_URL=http://localhost:5000/api
 REACT_APP_SOCKET_URL=http://localhost:5000
 ```
@@ -98,7 +111,7 @@ Frontend runs on `http://localhost:3000`
 The backend seeds demo data on first run. Use these credentials:
 
 **Admin Account:**
-- Email: admin@example.com
+- Email: akash.saravanan1797@gmail.com
 - Password: admin123
 - Role: admin
 

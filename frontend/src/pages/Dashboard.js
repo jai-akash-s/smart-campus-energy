@@ -202,7 +202,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-{canOperate ? (
+{canOperate && (
 <div className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-8 rounded-3xl shadow-2xl mb-10 border border-white/10">
   <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
     ➕ Add Energy Reading 
@@ -330,10 +330,6 @@ const Dashboard = () => {
     </button>
   </form>
 </div>
-): (
-  <div className="mb-10 rounded-2xl border border-blue-200 bg-blue-50 text-blue-800 px-5 py-4 text-sm font-semibold">
-    View-only mode: only operator/admin can add records. Delete is admin-only.
-  </div>
 )}
           {/* Key Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">

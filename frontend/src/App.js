@@ -17,8 +17,6 @@ import Alerts from './pages/Alerts';
 import Settings from './pages/Settings';
 
 function App() {
-  const ADMIN_EMAIL = 'akash.saravanan1797@gmail.com';
-
   return (
     <ErrorBoundary>
       <Router>
@@ -81,7 +79,7 @@ function App() {
             <Route
               path="/admin"
               element={
-                <ProtectedRoute requiredRole="admin" requiredEmail={ADMIN_EMAIL}>
+                <ProtectedRoute requiredRole="admin">
                   <Admin />
                 </ProtectedRoute>
               }

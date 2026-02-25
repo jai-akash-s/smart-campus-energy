@@ -57,7 +57,7 @@ const Admin = () => {
     }
   };
 
-  if (user?.role !== 'admin' || String(user?.email || '').toLowerCase() !== ADMIN_EMAIL) {
+  if (user?.role !== 'admin') {
     return (
       <>
         <Navbar />

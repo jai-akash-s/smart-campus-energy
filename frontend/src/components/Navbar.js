@@ -30,18 +30,31 @@ const Navbar = () => {
     <nav className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4">
         <div className="flex justify-between items-center">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-green-500 to-emerald-600 text-white p-2 rounded-lg shadow-lg">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M13 2L3 9v11c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V9l-10-7zm0 14l-3-4h6l-3 4zm0-6L9 11h8l-4-3z" />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.dispatchEvent(new Event('toggle-sidebar'))}
+              className="md:hidden p-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-300"
+              aria-label="Toggle navigation menu"
+              title="Menu"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z" />
               </svg>
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Smart Campus</h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Energy Monitor</p>
-            </div>
-          </Link>
+            </button>
+
+            {/* Logo */}
+            <Link to="/" className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-green-500 to-emerald-600 text-white p-2 rounded-lg shadow-lg">
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M13 2L3 9v11c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V9l-10-7zm0 14l-3-4h6l-3 4zm0-6L9 11h8l-4-3z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Smart Campus</h1>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Energy Monitor</p>
+              </div>
+            </Link>
+          </div>
 
           {/* Right Side */}
           <div className="flex items-center gap-3">
@@ -72,7 +85,7 @@ const Navbar = () => {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="px-3 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors"
+                  className="md:hidden px-3 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors"
                 >
                   Logout
                 </button>
