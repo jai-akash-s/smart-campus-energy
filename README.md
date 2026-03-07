@@ -117,3 +117,64 @@ Build a practical smart-campus solution that helps institutions:
 - AI-based energy prediction
 - Mobile application support
 - Automated energy alerts
+
+## Postman API Testing
+
+Use Postman to test backend APIs.
+
+- Base URL: `http://localhost:5000/api`
+- Login first to get JWT token.
+- For protected routes, add header:
+  - `Authorization: Bearer <token>`
+
+### Suggested execution order
+
+1. `POST /auth/login`
+2. `GET /auth/me`
+3. `GET /users` (admin)
+4. `GET /buildings`
+5. `GET /sensors`
+6. `POST /sensors` (admin)
+7. `PUT /sensors/:id`
+8. `GET /energy`
+9. `POST /energy`
+10. `GET /energy/stats`
+11. `GET /alerts`
+12. `PUT /alerts/:id`
+13. `POST /alerts/resolve-all` (admin)
+
+### Sample request bodies
+
+`POST /auth/login`
+
+```json
+{
+  "email": "akash.saravanan1797@gmail.com",
+  "password": "admin123"
+}
+```
+
+`POST /sensors`
+
+```json
+{
+  "sensorId": "lab-new-01",
+  "buildingName": "Labs",
+  "name": "Lab New Sensor",
+  "type": "meter",
+  "power": 5.2,
+  "threshold": 10
+}
+```
+
+`POST /energy`
+
+```json
+{
+  "buildingName": "Labs",
+  "energy_kwh": 120.5,
+  "voltage": 230,
+  "current": 12.4,
+  "cost": 980
+}
+```
