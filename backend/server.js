@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const helmet = require("helmet");
 const dotenv = require("dotenv");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
@@ -54,6 +55,7 @@ const io = new Server(server, {
 });
 
 app.use(cors());
+app.use(helmet());
 app.use(express.json());
 
 const passthroughLimiter = (req, res, next) => next();
