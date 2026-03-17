@@ -118,6 +118,19 @@ Build a practical smart-campus solution that helps institutions:
 - Mobile application support
 - Automated energy alerts
 
+## Additional Ideas to Add
+
+- Demand response and peak load shaving suggestions
+- Carbon footprint tracking (kWh to CO2 conversion)
+- Anomaly detection for unusual spikes in usage
+- Energy budgeting with per-building targets
+- Cost forecasting based on recent trends
+- Occupancy-normalized efficiency metrics
+- Maintenance scheduling linked to repeated alerts
+- Renewable energy contribution tracking (solar vs grid)
+- Multi-channel notifications (email/SMS/WhatsApp)
+- Data export to CSV/Excel for audits and reporting
+
 ## Postman API Testing
 
 Use Postman to test backend APIs.
