@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Navbar from '../components/Navbar';
 import SidebarNav from '../components/SidebarNav';
-import ToastStack from '../components/ToastStack';
 import { useAlerts } from '../hooks/useApi';
 import { LoadingSpinner } from '../components/Utils';
+import { useToast } from '../context/ToastContext';
 
 const Alerts = () => {
   const [statusFilter, setStatusFilter] = useState('active');
@@ -12,7 +12,7 @@ const Alerts = () => {
   const [searchText, setSearchText] = useState('');
 
   const { alerts, loading, error, resolveAlert, acknowledgeAlert, resolveAllAlerts } = useAlerts(statusFilter);
-  const [toasts, setToasts] = useState([]);
+  const { pushToast } = useToast();
   const [lastAlertSignature, setLastAlertSignature] = useState('');
 
   const summary = useMemo(() => {
@@ -45,22 +45,18 @@ const Alerts = () => {
     const signature = `${latest._id || latest.id || latest.createdAt}-${latest.status}`;
     if (signature !== lastAlertSignature) {
       setLastAlertSignature(signature);
-      const toast = {
-        id: Date.now(),
+      pushToast({
         type: latest.severity === 'high' ? 'error' : latest.severity === 'medium' ? 'warning' : 'info',
         title: `New ${latest.severity || 'active'} alert`,
         message: latest.message || `${latest.sensorName || 'Sensor'} in ${latest.building || 'campus'}`
-      };
-      setToasts((prev) => [toast, ...prev].slice(0, 5));
-      setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toast.id)), 4500);
+      });
     }
-  }, [alerts, lastAlertSignature]);
+  }, [alerts, lastAlertSignature, pushToast]);
 
   return (
     <>
       <Navbar />
       <SidebarNav />
-      <ToastStack toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
       <main className="bg-gray-50 dark:bg-gray-900 min-h-screen p-4 md:p-8 md:ml-56">
         <div className="max-w-7xl mx-auto">
           <div className="mb-6">
@@ -75,23 +71,17 @@ const Alerts = () => {
                 onClick={async () => {
                   try {
                     const data = await resolveAllAlerts();
-                    const toast = {
-                      id: Date.now(),
+                    pushToast({
                       type: 'success',
                       title: 'All alerts resolved',
                       message: `${data?.updatedCount || 0} active alerts marked resolved`
-                    };
-                    setToasts((prev) => [toast, ...prev].slice(0, 5));
-                    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toast.id)), 3000);
+                    });
                   } catch (e) {
-                    const toast = {
-                      id: Date.now(),
+                    pushToast({
                       type: 'error',
                       title: 'Resolve all failed',
                       message: e?.response?.data?.message || e.message || 'Unable to resolve alerts'
-                    };
-                    setToasts((prev) => [toast, ...prev].slice(0, 5));
-                    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toast.id)), 3000);
+                    });
                   }
                 }}
                 className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700"
@@ -228,23 +218,17 @@ const Alerts = () => {
                                 onClick={async () => {
                                   try {
                                     await acknowledgeAlert(a._id || a.id);
-                                    const toast = {
-                                      id: Date.now(),
+                                    pushToast({
                                       type: 'info',
                                       title: 'Acknowledged',
                                       message: a.message || `${a.type || 'Alert'} acknowledged`
-                                    };
-                                    setToasts((prev) => [toast, ...prev].slice(0, 5));
-                                    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toast.id)), 3000);
+                                    });
                                   } catch (e) {
-                                    const toast = {
-                                      id: Date.now(),
+                                    pushToast({
                                       type: 'error',
                                       title: 'Acknowledge failed',
                                       message: e?.response?.data?.message || e.message || 'Unable to acknowledge alert'
-                                    };
-                                    setToasts((prev) => [toast, ...prev].slice(0, 5));
-                                    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toast.id)), 3000);
+                                    });
                                   }
                                 }}
                                 className="px-3 py-1 rounded bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700"
@@ -257,23 +241,17 @@ const Alerts = () => {
                                 onClick={async () => {
                                   try {
                                     await resolveAlert(a._id || a.id);
-                                    const toast = {
-                                      id: Date.now(),
+                                    pushToast({
                                       type: 'success',
                                       title: 'Alert resolved',
                                       message: a.message || `${a.type || 'Alert'} resolved`
-                                    };
-                                    setToasts((prev) => [toast, ...prev].slice(0, 5));
-                                    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toast.id)), 3000);
+                                    });
                                   } catch (e) {
-                                    const toast = {
-                                      id: Date.now(),
+                                    pushToast({
                                       type: 'error',
                                       title: 'Resolve failed',
                                       message: e?.response?.data?.message || e.message || 'Unable to resolve alert'
-                                    };
-                                    setToasts((prev) => [toast, ...prev].slice(0, 5));
-                                    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toast.id)), 3000);
+                                    });
                                   }
                                 }}
                                 className="px-3 py-1 rounded bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700"

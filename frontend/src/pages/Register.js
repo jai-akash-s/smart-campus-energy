@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 const Register = () => {
   const [name, setName] = useState('');
@@ -10,6 +11,7 @@ const Register = () => {
   const [error, setError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const { register, loading } = useAuth();
+  const { pushToast } = useToast();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -19,19 +21,24 @@ const Register = () => {
 
     if (password !== confirmPassword) {
       setPasswordError('Passwords do not match');
+      pushToast({ type: 'warning', title: 'Password mismatch', message: 'Please confirm the same password.' });
       return;
     }
 
     if (password.length < 6) {
       setPasswordError('Password must be at least 6 characters');
+      pushToast({ type: 'warning', title: 'Weak password', message: 'Use at least 6 characters.' });
       return;
     }
 
     try {
       await register(name, email, password);
+      pushToast({ type: 'success', title: 'Account created', message: 'Your account is ready.' });
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed');
+      const message = err.response?.data?.message || 'Registration failed';
+      setError(message);
+      pushToast({ type: 'error', title: 'Registration failed', message });
     }
   };
 

@@ -1,27 +1,29 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import ErrorBoundary from './components/Utils';
+import ErrorBoundary, { LoadingSpinner } from './components/Utils';
 
-// Pages
-import Home from './pages/Home';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import Sensors from './pages/Sensors';
-import Analytics from './pages/Analytics';
-import Admin from './pages/Admin';
-import Buildings from './pages/Buildings';
-import Alerts from './pages/Alerts';
-import Settings from './pages/Settings';
+const Home = lazy(() => import('./pages/Home'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Sensors = lazy(() => import('./pages/Sensors'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+const Admin = lazy(() => import('./pages/Admin'));
+const Buildings = lazy(() => import('./pages/Buildings'));
+const Alerts = lazy(() => import('./pages/Alerts'));
+const Settings = lazy(() => import('./pages/Settings'));
 
 function App() {
   return (
     <ErrorBoundary>
       <Router>
         <AuthProvider>
-          <Routes>
+          <ToastProvider>
+            <Suspense fallback={<LoadingSpinner fullScreen />}>
+              <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
@@ -87,7 +89,9 @@ function App() {
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+              </Routes>
+            </Suspense>
+          </ToastProvider>
         </AuthProvider>
       </Router>
     </ErrorBoundary>

@@ -1,0 +1,707 @@
+openapi: 3.0.3
+info:
+  title: Smart Campus Energy Management API
+  version: 1.0.0
+  description: |
+    REST API for authentication, buildings, sensors, energy readings, alerts,
+    and forecasting for the Smart Campus Energy Management System.
+servers:
+  - url: http://localhost:5000/api
+    description: Local development
+tags:
+  - name: Auth
+  - name: Users
+  - name: Buildings
+  - name: Sensors
+  - name: Energy
+  - name: Alerts
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+    AuthToken:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        _id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, operator, viewer]
+        building:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    Building:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        code:
+          type: string
+        location:
+          type: string
+        capacity:
+          type: number
+        manager:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    Sensor:
+      type: object
+      properties:
+        _id:
+          type: string
+        sensorId:
+          type: string
+        building:
+          type: string
+        buildingName:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [ac, light, meter, temperature]
+        power:
+          type: number
+        temp:
+          type: number
+        voltage:
+          type: number
+        current:
+          type: number
+        status:
+          type: string
+          enum: [active, inactive, warning]
+        threshold:
+          type: number
+        trend:
+          type: array
+          items:
+            type: number
+        lastUpdated:
+          type: string
+          format: date-time
+    EnergyReading:
+      type: object
+      properties:
+        _id:
+          type: string
+        building:
+          type: string
+        buildingName:
+          type: string
+        energy_kwh:
+          type: number
+        voltage:
+          type: number
+        current:
+          type: number
+        cost:
+          type: number
+        timestamp:
+          type: string
+          format: date-time
+    Alert:
+      type: object
+      properties:
+        _id:
+          type: string
+        type:
+          type: string
+          enum: [anomaly, threshold, maintenance]
+        sensor:
+          type: string
+        sensorName:
+          type: string
+        building:
+          type: string
+        severity:
+          type: string
+          enum: [low, medium, high]
+        message:
+          type: string
+        acknowledged:
+          type: boolean
+        acknowledgedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [active, resolved]
+        createdAt:
+          type: string
+          format: date-time
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthToken"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthToken"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /auth/google:
+    post:
+      tags: [Auth]
+      summary: Login with Google ID token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [credential]
+              properties:
+                credential:
+                  type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthToken"
+        "401":
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /users:
+    get:
+      tags: [Users]
+      summary: List users (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /users/{id}/role:
+    put:
+      tags: [Users]
+      summary: Update user role (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [admin, operator, viewer]
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /users/{id}:
+    delete:
+      tags: [Users]
+      summary: Delete a user (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  id:
+                    type: string
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /buildings:
+    get:
+      tags: [Buildings]
+      summary: List buildings
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Building"
+    post:
+      tags: [Buildings]
+      summary: Create building (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Building"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Building"
+  /sensors:
+    get:
+      tags: [Sensors]
+      summary: List sensors
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sensor"
+    post:
+      tags: [Sensors]
+      summary: Create sensor (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Sensor"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sensor"
+  /sensors/{id}:
+    put:
+      tags: [Sensors]
+      summary: Update sensor (operator or admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Sensor"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sensor"
+  /energy:
+    get:
+      tags: [Energy]
+      summary: Get energy readings (paginated)
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  readings:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/EnergyReading"
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  pages:
+                    type: integer
+    post:
+      tags: [Energy]
+      summary: Create energy reading (operator or admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnergyReading"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnergyReading"
+  /energy/{id}:
+    delete:
+      tags: [Energy]
+      summary: Delete energy reading (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  id:
+                    type: string
+  /energy/building/{building}:
+    get:
+      tags: [Energy]
+      summary: Get readings for a building in last N hours
+      parameters:
+        - name: building
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            default: 24
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EnergyReading"
+  /energy/stats:
+    get:
+      tags: [Energy]
+      summary: Get aggregate stats for last N hours
+      parameters:
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            default: 24
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalEnergy:
+                    type: number
+                  totalCost:
+                    type: number
+                  avgPower:
+                    type: number
+                  readingsCount:
+                    type: integer
+                  period:
+                    type: string
+  /energy/forecast:
+    get:
+      tags: [Energy]
+      summary: Get energy forecast using trend model
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 7
+        - name: lookbackDays
+          in: query
+          schema:
+            type: integer
+            default: 60
+        - name: building
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  model:
+                    type: string
+                  building:
+                    type: string
+                  lookbackDays:
+                    type: integer
+                  forecastDays:
+                    type: integer
+                  correlationTempVsForecast:
+                    type: number
+                  history:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                        energy:
+                          type: number
+                  forecast:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                        predicted_kwh:
+                          type: number
+                        lower_kwh:
+                          type: number
+                        upper_kwh:
+                          type: number
+  /alerts:
+    get:
+      tags: [Alerts]
+      summary: List alerts
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, resolved, all]
+            default: active
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+    post:
+      tags: [Alerts]
+      summary: Create alert (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Alert"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+  /alerts/{id}:
+    put:
+      tags: [Alerts]
+      summary: Update or resolve alert (operator or admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Alert"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+  /alerts/resolve-all:
+    post:
+      tags: [Alerts]
+      summary: Resolve all active alerts (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Resolved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  updatedCount:
+                    type: integer

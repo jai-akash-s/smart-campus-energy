@@ -15,12 +15,12 @@ import { useAlerts, useEnergyReadings, useEnergyForecast } from '../hooks/useApi
 import { LoadingSpinner } from '../components/Utils';
 import Navbar from '../components/Navbar';
 import SidebarNav from '../components/SidebarNav';
-import ToastStack from '../components/ToastStack';
+import { useToast } from '../context/ToastContext';
 
 const Analytics = () => {
   const [timeframe, setTimeframe] = useState('week');
-  const [toasts, setToasts] = useState([]);
   const [lastAlertSignature, setLastAlertSignature] = useState('');
+  const { pushToast } = useToast();
 
   const { alerts, loading: alertsLoading } = useAlerts();
   const { readings } = useEnergyReadings();
@@ -167,18 +167,13 @@ const Analytics = () => {
     const signature = `${latest._id || latest.id || latest.createdAt}-${latest.status}`;
     if (signature !== lastAlertSignature) {
       setLastAlertSignature(signature);
-      const toast = {
-        id: Date.now(),
+      pushToast({
         type: latest.severity === 'high' ? 'error' : latest.severity === 'medium' ? 'warning' : 'info',
         title: `Alert: ${latest.type || 'Event'}`,
         message: latest.message || `${latest.sensorName || 'Sensor'} in ${latest.building || 'campus'}`
-      };
-      setToasts((prev) => [toast, ...prev].slice(0, 4));
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== toast.id));
-      }, 4500);
+      });
     }
-  }, [alerts, lastAlertSignature]);
+  }, [alerts, lastAlertSignature, pushToast]);
 
   const handleGenerateAudit = () => {
     const totalCons = chartData.reduce((acc, curr) => acc + curr.consumption, 0);
@@ -209,7 +204,6 @@ End of Report
     <>
       <Navbar />
       <SidebarNav />
-      <ToastStack toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
       <main className="bg-gray-50 dark:bg-gray-900 min-h-screen p-4 md:p-8 md:ml-56">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">

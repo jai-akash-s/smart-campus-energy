@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: smart-campus-backend
+    env: node
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: FIXED_ALERT_THRESHOLD
+        value: "50"
+      - key: ALERT_DEDUP_COOLDOWN_SECONDS
+        value: "180"
+      - key: AUTH_RATE_LIMIT_WINDOW_MS
+        value: "900000"
+      - key: AUTH_RATE_LIMIT_MAX
+        value: "60"
+      - key: WRITE_RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: WRITE_RATE_LIMIT_MAX
+        value: "120"
+
+  - type: web
+    name: smart-campus-frontend
+    env: static
+    region: oregon
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: build
+    envVars:
+      - key: REACT_APP_API_URL
+        sync: false
+      - key: REACT_APP_SOCKET_URL
+        sync: false

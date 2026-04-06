@@ -423,7 +423,8 @@ app.get("/api/users", authMiddleware, adminOnly, async (req, res) => {
   try {
     const users = await User.find()
       .select("-password")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
     res.json(users);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -483,7 +484,7 @@ app.delete("/api/users/:id", authMiddleware, adminOnly, writeRateLimiter, async 
 // ==================== BUILDING ROUTES ====================
 app.get("/api/buildings", async (req, res) => {
   try {
-    const buildings = await Building.find().sort({ name: 1 });
+    const buildings = await Building.find().sort({ name: 1 }).lean();
     res.json(buildings);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -503,7 +504,10 @@ app.post("/api/buildings", authMiddleware, adminOnly, writeRateLimiter, async (r
 // ==================== SENSOR ROUTES ====================
 app.get("/api/sensors", async (req, res) => {
   try {
-    const sensors = await Sensor.find().populate("building", "name code").sort({ buildingName: 1 });
+    const sensors = await Sensor.find()
+      .populate("building", "name code")
+      .sort({ buildingName: 1 })
+      .lean();
     res.json(sensors);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -544,7 +548,8 @@ app.get("/api/energy", async (req, res) => {
     const readings = await EnergyReading.find()
       .sort({ timestamp: -1 })
       .limit(limit)
-      .skip((page - 1) * limit);
+      .skip((page - 1) * limit)
+      .lean();
     
     const total = await EnergyReading.countDocuments();
     res.json({ readings, total, page, pages: Math.ceil(total / limit) });
@@ -637,7 +642,7 @@ app.get("/api/energy/building/:building", async (req, res) => {
     const readings = await EnergyReading.find({ 
       buildingName: req.params.building, 
       timestamp: { $gte: cutoff } 
-    }).sort({ timestamp: -1 });
+    }).sort({ timestamp: -1 }).lean();
     res.json(readings);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -648,7 +653,7 @@ app.get("/api/energy/stats", async (req, res) => {
   try {
     const hours = parseInt(req.query.hours) || 24;
     const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
-    const readings = await EnergyReading.find({ timestamp: { $gte: cutoff } });
+    const readings = await EnergyReading.find({ timestamp: { $gte: cutoff } }).lean();
     
     const totalEnergy = readings.reduce((sum, r) => sum + (r.energy_kwh || 0), 0);
     const totalCost = readings.reduce((sum, r) => sum + (r.cost || 0), 0);
@@ -676,7 +681,7 @@ app.get("/api/energy/forecast", async (req, res) => {
     const filter = { timestamp: { $gte: cutoff } };
     if (building) filter.buildingName = building;
 
-    const readings = await EnergyReading.find(filter).sort({ timestamp: 1 });
+    const readings = await EnergyReading.find(filter).sort({ timestamp: 1 }).lean();
     const dailyMap = new Map();
     readings.forEach((r) => {
       const date = new Date(r.timestamp || Date.now()).toISOString().slice(0, 10);
@@ -721,7 +726,7 @@ app.get("/api/alerts", async (req, res) => {
     if (status && status !== "all") {
       query.status = status;
     }
-    const alerts = await Alert.find(query).sort({ createdAt: -1 }).limit(200);
+    const alerts = await Alert.find(query).sort({ createdAt: -1 }).limit(200).lean();
     res.json(alerts);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -730,7 +735,7 @@ app.get("/api/alerts", async (req, res) => {
 
 app.post("/api/alerts/resolve-all", authMiddleware, adminOnly, writeRateLimiter, async (req, res) => {
   try {
-    const active = await Alert.find({ status: "active" }).select("_id");
+    const active = await Alert.find({ status: "active" }).select("_id").lean();
     if (!active.length) {
       return res.json({ message: "No active alerts", updatedCount: 0 });
     }
@@ -841,11 +846,17 @@ const seedDatabase = async () => {
   }
 };
 
-seedDatabase();
+if (process.env.NODE_ENV !== "test") {
+  seedDatabase();
+}
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📱 Frontend: ${process.env.FRONTEND_URL || "http://localhost:3000"}`);
-  console.log(`🔐 Admin Login: ${ADMIN_EMAIL} / admin123`);
-});
+if (process.env.NODE_ENV !== "test") {
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`📱 Frontend: ${process.env.FRONTEND_URL || "http://localhost:3000"}`);
+    console.log(`🔐 Admin Login: ${ADMIN_EMAIL} / admin123`);
+  });
+}
+
+module.exports = { app, server, io, mongoose };

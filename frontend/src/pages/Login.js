@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const { login, loading } = useAuth();
+  const { pushToast } = useToast();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -14,9 +16,12 @@ const Login = () => {
     setError('');
     try {
       await login(email, password);
+      pushToast({ type: 'success', title: 'Welcome back', message: 'Signed in successfully.' });
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
+      const message = err.response?.data?.message || 'Login failed';
+      setError(message);
+      pushToast({ type: 'error', title: 'Sign in failed', message });
     }
   };
 
